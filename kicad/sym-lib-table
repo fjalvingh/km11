@@ -1,0 +1,3 @@
+(sym_lib_table
+  (lib (name "DEC-FLIP-CHIP-DOUBLE-EXT-template-rescue")(type "Legacy")(uri "${KIPRJMOD}/DEC-FLIP-CHIP-DOUBLE-EXT-template-rescue.lib")(options "")(descr ""))
+)
