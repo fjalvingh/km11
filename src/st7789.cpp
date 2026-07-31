@@ -9,8 +9,10 @@
 #define ST_SWRESET 0x01
 #define ST_SLPOUT  0x11
 #define ST_NORON   0x13
+#define ST_INVOFF  0x20
 #define ST_INVON   0x21
 #define ST_DISPON  0x29
+#define ST_RDDID   0x04
 #define ST_CASET   0x2A
 #define ST_RASET   0x2B
 #define ST_RAMWR   0x2C
@@ -51,11 +53,15 @@
 
 // --------------------------------------------------------------- spi + pins
 
-static inline void spiWrite(uint8_t v) {
+static inline uint8_t spiTransfer(uint8_t v) {
 	SPI0.DATA = v;
 	while(!(SPI0.INTFLAGS & SPI_IF_bm))
 		;
-	(void) SPI0.DATA;					// clears IF
+	return SPI0.DATA;					// reading DATA also clears IF
+}
+
+static inline void spiWrite(uint8_t v) {
+	(void) spiTransfer(v);
 }
 
 static inline void spiWrite16(uint16_t v) {
@@ -68,9 +74,31 @@ static inline void csHigh()   { LCD_SPI_PORT.OUTSET = LCD_CS_bm; }
 static inline void dcCommand(){ LCD_CTRL_PORT.OUTCLR = LCD_DC_bm; }
 static inline void dcData()   { LCD_CTRL_PORT.OUTSET = LCD_DC_bm; }
 
+// Master, mode 0, F_CPU/16 (625kHz at 10MHz): slow enough to survive the wiring
+// out to the display. Add SPI_CLK2X_bm to double it, or go to SPI_PRESC_DIV4_gc
+// (+ CLK2X) for 2.5 / 5MHz once the link is trusted. SSD frees PA4 from its
+// slave select duty so it can be used as CS by hand.
+//
+// Split out of lcdInit() because lcdReadRegister() has to switch SPI0 off to
+// borrow the pins, and needs to put it back afterwards.
+static void spiSetup() {
+#if LCD_SPI_MODE == 3
+	SPI0.CTRLB = SPI_SSD_bm | SPI_MODE_3_gc;
+#else
+	SPI0.CTRLB = SPI_SSD_bm | SPI_MODE_0_gc;
+#endif
+	SPI0.CTRLA = SPI_MASTER_bm | SPI_PRESC_DIV16_gc | SPI_ENABLE_bm;
+}
+
 static void writeCommand(uint8_t cmd) {
 	dcCommand();
+#if LCD_STRETCH_DC
+	_delay_us(200);
+#endif
 	spiWrite(cmd);
+#if LCD_STRETCH_DC
+	_delay_us(200);
+#endif
 	dcData();
 }
 
@@ -94,6 +122,81 @@ static void setWindow(uint16_t x, uint16_t y, uint16_t w, uint16_t h) {
 
 // --------------------------------------------------------------------- init
 
+#define ST_PORCTRL  0xB2
+#define ST_GCTRL    0xB7
+#define ST_VCOMS    0xBB
+#define ST_LCMCTRL  0xC0
+#define ST_VDVVRHEN 0xC2
+#define ST_VRHS     0xC3
+#define ST_VDVS     0xC4
+#define ST_FRCTRL2  0xC6
+#define ST_PWCTRL1  0xD0
+#define ST_PVGAMCTRL 0xE0
+#define ST_NVGAMCTRL 0xE1
+
+#if LCD_INVERT
+	#define ST_INV_CMD ST_INVON
+#else
+	#define ST_INV_CMD ST_INVOFF
+#endif
+
+// Init sequence as a flash table: command, argument count, arguments. Bit 7 of
+// the count means "wait 120ms afterwards", and 0xFF ends the table. A table
+// costs far less flash than the same sequence written out as calls, mostly
+// because of the two fourteen-byte gamma writes.
+static const uint8_t initFull[] PROGMEM = {
+	ST_SLPOUT,   0x80,
+	ST_COLMOD,   1, 0x55,				// 16 bit/pixel, RGB565
+	ST_MADCTL,   1, MADCTL_VALUE,
+
+	ST_PORCTRL,  5, 0x0C, 0x0C, 0x00, 0x33, 0x33,
+	ST_GCTRL,    1, 0x35,
+	ST_VCOMS,    1, LCD_VCOM,
+	ST_LCMCTRL,  1, 0x2C,
+	ST_VDVVRHEN, 1, 0x01,
+	ST_VRHS,     1, 0x12,
+	ST_VDVS,     1, 0x20,
+	ST_FRCTRL2,  1, 0x0F,				// 60Hz
+	ST_PWCTRL1,  2, 0xA4, 0xA1,
+
+	ST_PVGAMCTRL, 14, 0xD0, 0x04, 0x0D, 0x11, 0x13, 0x2B, 0x3F,
+					  0x54, 0x4C, 0x18, 0x0D, 0x0B, 0x1F, 0x23,
+	ST_NVGAMCTRL, 14, 0xD0, 0x04, 0x0C, 0x11, 0x13, 0x2C, 0x3F,
+					  0x44, 0x51, 0x2F, 0x1F, 0x1F, 0x20, 0x23,
+
+	ST_INV_CMD,  0,
+	ST_NORON,    0,
+	ST_DISPON,   0x80,
+	0xFF
+};
+
+// The short sequence: enough for an ST7789V, not enough for every panel.
+static const uint8_t initMinimal[] PROGMEM = {
+	ST_SLPOUT,  0x80,
+	ST_COLMOD,  1, 0x55,
+	ST_MADCTL,  1, MADCTL_VALUE,
+	ST_INV_CMD, 0,
+	ST_NORON,   0,
+	ST_DISPON,  0x80,
+	0xFF
+};
+
+static void runInitTable(const uint8_t *table) {
+	for(;;) {
+		uint8_t cmd = pgm_read_byte(table++);
+		if(cmd == 0xFF)
+			break;
+
+		uint8_t argc = pgm_read_byte(table++);
+		writeCommand(cmd);
+		for(uint8_t i = 0; i < (argc & 0x7F); i++)
+			spiWrite(pgm_read_byte(table++));
+
+		if(argc & 0x80)
+			_delay_ms(120);
+	}
+}
+
 void lcdInit() {
 	// CS, DC and RST idle high; MOSI and SCK are driven by SPI0 but still need
 	// to be outputs.
@@ -102,10 +205,7 @@ void lcdInit() {
 	LCD_CTRL_PORT.OUTSET = LCD_DC_bm | LCD_RST_bm;
 	LCD_CTRL_PORT.DIRSET = LCD_DC_bm | LCD_RST_bm;
 
-	// Master, mode 0, F_CPU/2 (10MHz at 20MHz). SSD frees PA4 from its slave
-	// select duty so it can be used as CS by hand.
-	SPI0.CTRLB = SPI_SSD_bm | SPI_MODE_0_gc;
-	SPI0.CTRLA = SPI_MASTER_bm | SPI_CLK2X_bm | SPI_PRESC_DIV4_gc | SPI_ENABLE_bm;
+	spiSetup();
 
 	// Hardware reset.
 	LCD_CTRL_PORT.OUTCLR = LCD_RST_bm;
@@ -118,23 +218,11 @@ void lcdInit() {
 	writeCommand(ST_SWRESET);
 	_delay_ms(150);
 
-	writeCommand(ST_SLPOUT);
-	_delay_ms(120);
-
-	writeCommand(ST_COLMOD);
-	spiWrite(0x55);						// 16 bit/pixel, RGB565
-
-	writeCommand(ST_MADCTL);
-	spiWrite(MADCTL_VALUE);
-
-	writeCommand(ST_INVON);				// these IPS panels are inverted
-	_delay_ms(10);
-
-	writeCommand(ST_NORON);
-	_delay_ms(10);
-
-	writeCommand(ST_DISPON);
-	_delay_ms(120);
+#if LCD_FULL_INIT
+	runInitTable(initFull);
+#else
+	runInitTable(initMinimal);
+#endif
 
 	csHigh();
 }
@@ -161,6 +249,85 @@ void lcdFillRect(uint16_t x, uint16_t y, uint16_t w, uint16_t h, uint16_t color)
 
 void lcdFill(uint16_t color) {
 	lcdFillRect(0, 0, LCD_W, LCD_H, color);
+}
+
+void lcdReadRegister(uint8_t cmd, uint8_t *out, uint8_t count) {
+	// Half duplex on SDA: the module has no SDO, so the controller answers on
+	// the same wire the command went out on. SPI0 cannot turn MOSI around
+	// mid-transfer, so this is bit-banged and SPI0 is switched off for the
+	// duration. Roughly 250kHz, well inside any controller's read timing, which
+	// is always far slower than its write timing.
+	SPI0.CTRLA = 0;						// release PA1 and PA3
+
+	LCD_SPI_PORT.OUTCLR = LCD_SCK_bm;	// mode 0: clock idles low
+	LCD_SPI_PORT.DIRSET = LCD_MOSI_bm | LCD_SCK_bm;
+
+	csLow();
+	dcCommand();
+	for(int8_t bit = 7; bit >= 0; bit--) {
+		if(cmd & (1 << bit))
+			LCD_SPI_PORT.OUTSET = LCD_MOSI_bm;
+		else
+			LCD_SPI_PORT.OUTCLR = LCD_MOSI_bm;
+		_delay_us(2);
+		LCD_SPI_PORT.OUTSET = LCD_SCK_bm;
+		_delay_us(2);
+		LCD_SPI_PORT.OUTCLR = LCD_SCK_bm;
+	}
+	dcData();
+
+	// Hand SDA over to the panel. The pull-up means a controller that does not
+	// drive it reads back as a clean 0xFF rather than as floating noise.
+	LCD_SPI_PORT.DIRCLR = LCD_MOSI_bm;
+	LCD_SPI_PORT.PIN1CTRL = PORT_PULLUPEN_bm;
+	_delay_us(2);
+
+	// No dummy clocks are skipped: how many a controller inserts before the
+	// answer varies between one bit and a whole byte, so the raw stream is
+	// handed back as it arrives and the pattern can be found in it by eye.
+	for(uint8_t i = 0; i < count; i++) {
+		uint8_t v = 0;
+		for(uint8_t bit = 0; bit < 8; bit++) {
+			LCD_SPI_PORT.OUTSET = LCD_SCK_bm;
+			_delay_us(2);
+			v <<= 1;
+			if(LCD_SPI_PORT.IN & LCD_MOSI_bm)
+				v |= 1;
+			LCD_SPI_PORT.OUTCLR = LCD_SCK_bm;
+			_delay_us(2);
+		}
+		out[i] = v;
+	}
+
+	csHigh();
+
+	LCD_SPI_PORT.PIN1CTRL = 0;
+	LCD_SPI_PORT.DIRSET = LCD_MOSI_bm;
+	spiSetup();
+}
+
+void lcdFillRam(uint16_t color) {
+	uint8_t hi = (uint8_t) (color >> 8);
+	uint8_t lo = (uint8_t) color;
+
+	csLow();
+	// Deliberately not setWindow(): no offsets, no rotation, no panel size.
+	// Whatever part of the 240x320 memory the panel is wired to, it is in here.
+	writeCommand(ST_CASET);
+	spiWrite16(0);
+	spiWrite16(RAM_W - 1);
+	writeCommand(ST_RASET);
+	spiWrite16(0);
+	spiWrite16(RAM_H - 1);
+	writeCommand(ST_RAMWR);
+
+	for(uint16_t row = 0; row < RAM_H; row++) {
+		for(uint16_t col = 0; col < RAM_W; col++) {
+			spiWrite(hi);
+			spiWrite(lo);
+		}
+	}
+	csHigh();
 }
 
 // --------------------------------------------------------------------- text

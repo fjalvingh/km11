@@ -46,6 +46,23 @@ void lcdInit();
 void lcdFillRect(uint16_t x, uint16_t y, uint16_t w, uint16_t h, uint16_t color);
 void lcdFill(uint16_t color);
 
+// Bring-up aid: floods the controller's entire 240x320 frame memory, ignoring
+// the panel size, the offsets and the rotation. Wherever the visible window
+// sits inside that memory, this covers it, so it separates "the controller is
+// not listening" from "the controller is listening but I am addressing the
+// wrong pixels". Takes about a second at 1.25MHz.
+void lcdFillRam(uint16_t color);
+
+// Bring-up aid: sends a command and clocks `count` bytes of the answer back in
+// over SDA, which is the only way to read from a module that has no SDO pin.
+// This is the one test that proves traffic goes *both* ways. Bit-banged, so it
+// takes SPI0 down and restores it; do not call it from drawing code.
+//
+// Nothing is skipped for dummy clocks - the raw stream comes back as it arrives,
+// because how many a controller inserts before its answer varies. Useful
+// commands: 0x04 RDDID, 0x09 RDDST, 0x0A RDDPM (power mode).
+void lcdReadRegister(uint8_t cmd, uint8_t *out, uint8_t count);
+
 // Draws one glyph in a FONT_CELL_W x FONT_HEIGHT cell (6x8, times scale) with
 // the background painted in the same pass, and returns the x of the next cell.
 // Characters outside 0x20..0x7E are drawn as a blank cell.
