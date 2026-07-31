@@ -19,5 +19,10 @@ fp-info-cache
 *.zip
 *.lck
 
+# Firmware build output
+*.o
+*.elf
+*.hex
+
 
 
