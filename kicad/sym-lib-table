@@ -1,3 +1,5 @@
 (sym_lib_table
-  (lib (name "DEC-FLIP-CHIP-DOUBLE-EXT-template-rescue")(type "Legacy")(uri "${KIPRJMOD}/DEC-FLIP-CHIP-DOUBLE-EXT-template-rescue.lib")(options "")(descr ""))
+	(version 7)
+	(lib (name "DEC-FLIP-CHIP-DOUBLE-EXT-template-rescue") (type "Legacy") (uri "${KIPRJMOD}/DEC-FLIP-CHIP-DOUBLE-EXT-template-rescue.lib") (options "") (descr ""))
+	(lib (name "DEC-FLIP-CHIP-DOUBLE-EXT-template-cache") (type "Legacy") (uri "/home/jal/hobby/git/kicad/dec-flip-chip-templates/templates/DEC-FLIP-CHIP-DOUBLE-EXT-template/DEC-FLIP-CHIP-DOUBLE-EXT-template-cache.lib") (options "") (descr "Legacy project cache library"))
 )

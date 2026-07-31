@@ -1,6 +1,6 @@
 {
   "board": {
-    "active_layer": 0,
+    "active_layer": 5,
     "active_layer_preset": "",
     "auto_track_width": true,
     "hidden_netclasses": [],
@@ -51,7 +51,7 @@
       "shapes",
       "ly_points"
     ],
-    "visible_layers": "00000000_00000000_0000000a_aaaaaaa5",
+    "visible_layers": "00000000_00000000_00000002_aaaaaaad",
     "zone_display_mode": 0
   },
   "git": {
@@ -61,7 +61,7 @@
     "ssh_key": ""
   },
   "meta": {
-    "filename": "km11.kicad_prl",
+    "filename": "km1105.kicad_prl",
     "version": 5
   },
   "net_inspector_panel": {

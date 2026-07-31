@@ -69,13 +69,7 @@
           "thermal_relief_spoke_width": 0.5
         }
       },
-      "diff_pair_dimensions": [
-        {
-          "gap": 0.0,
-          "via_gap": 0.0,
-          "width": 0.0
-        }
-      ],
+      "diff_pair_dimensions": [],
       "drc_exclusions": [],
       "meta": {
         "filename": "board_design_settings.json",
@@ -148,8 +142,6 @@
       "rule_severitieslegacy_courtyards_overlap": true,
       "rule_severitieslegacy_no_courtyard_defined": false,
       "rules": {
-        "allow_blind_buried_vias": false,
-        "allow_microvias": false,
         "max_error": 0.005,
         "min_clearance": 0.0,
         "min_connection": 0.0,
@@ -167,11 +159,7 @@
         "min_track_width": 0.2,
         "min_via_annular_width": 0.1,
         "min_via_diameter": 0.4,
-        "solder_mask_clearance": 0.0,
-        "solder_mask_min_width": 0.0,
-        "solder_mask_to_copper_clearance": 0.0,
-        "solder_paste_clearance": 0.0,
-        "solder_paste_margin_ratio": -0.0,
+        "solder_mask_to_copper_clearance": 0.005,
         "use_height_for_length_calcs": true
       },
       "teardrop_options": [
@@ -218,9 +206,7 @@
           "td_width_to_size_filter_ratio": 0.9
         }
       ],
-      "track_widths": [
-        0.0
-      ],
+      "track_widths": [],
       "tuning_pattern_settings": {
         "diff_pair_defaults": {
           "corner_radius_percentage": 80,
@@ -247,12 +233,7 @@
           "spacing": 0.6
         }
       },
-      "via_dimensions": [
-        {
-          "diameter": 0.0,
-          "drill": 0.0
-        }
-      ],
+      "via_dimensions": [],
       "zones_allow_external_fillets": false
     },
     "ipc2581": {
@@ -262,7 +243,7 @@
       "internal_id": "",
       "mfg": "",
       "mpn": "",
-      "sch_revision": ""
+      "sch_revision": "1"
     },
     "layer_pairs": [],
     "layer_presets": [],
@@ -510,7 +491,7 @@
     "pinned_symbol_libs": []
   },
   "meta": {
-    "filename": "km11.kicad_pro",
+    "filename": "km1105.kicad_pro",
     "version": 3
   },
   "net_settings": {
@@ -561,6 +542,10 @@
       {
         "netclass": "Power",
         "pattern": "+5V"
+      },
+      {
+        "netclass": "Power",
+        "pattern": "/+3.3V"
       },
       {
         "netclass": "Power",
@@ -704,18 +689,18 @@
     "subpart_id_separator": 0,
     "top_level_sheets": [
       {
-        "filename": "km11.kicad_sch",
-        "name": "km11",
-        "uuid": "f4123976-6d43-465e-965c-7ccd7d730696"
+        "filename": "km1105.kicad_sch",
+        "name": "km1105",
+        "uuid": "858d9376-0bb0-4bf1-a0c1-1a3c7de89d6c"
       }
     ],
-    "used_designators": "D1-2,C9-11,JP1,R3-11,#FLG1-2,#PWR19-25,J1,J3,Q1,U1-9",
+    "used_designators": "#FLG1-2,D1-2,C1-11,U1-16,Q1-2,R1-11,JP1-2,J2-4,#PWR1-38,H1-4",
     "variants": []
   },
   "sheets": [
     [
-      "f4123976-6d43-465e-965c-7ccd7d730696",
-      "km11"
+      "858d9376-0bb0-4bf1-a0c1-1a3c7de89d6c",
+      "km1105"
     ]
   ],
   "text_variables": {},
