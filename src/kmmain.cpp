@@ -2,7 +2,7 @@
 #include <util/delay.h>
 #include <avr/pgmspace.h>
 
-#include "st7789.h"
+#include "lcd.h"
 #include "font5x7.h"
 
 // The 20MHz fuse only selects the oscillator; the main clock still comes out of
@@ -149,19 +149,15 @@ __attribute__((unused)) static void idReportLoop() {
 
 // Panel bring-up mode. Set to 0 once the display works to get the text screen.
 //
-// This drops every assumption the text path makes. It re-runs lcdInit() on
-// every pass, so RST pulses low once a second and the whole init sequence can
-// be caught on a scope over and over instead of only in the first millisecond
-// after power-up, and it floods the controller's entire frame memory rather
-// than the 76x284 window, so neither the offsets nor the rotation can hide the
-// result. Solid colours cycling on the panel means the controller is listening
-// and only the addressing is wrong; a screen that stays white means it is not
-// accepting commands at all.
+// The modes are a ladder, each dropping more assumptions than the last: the
+// text screen needs everything to be right, mode 1 needs the geometry but not
+// the font, mode 4 needs neither, mode 2 needs no SPI at all.
 //
 //   0 = the real text screen
-//   1 = flood the whole frame memory with cycling colours
+//   1 = fill the panel with cycling colours, through the normal path
 //   2 = pin wiggle, no SPI at all, for checking the wiring end to end
 //   3 = read the controller ID back and report it on PB5
+//   4 = flood the raw frame memory, ignoring panel size and offsets
 //
 // Set it in the Makefile (make DIAG_MODE=2); this is only the fallback for a
 // compile that does not pass one.
@@ -169,13 +165,53 @@ __attribute__((unused)) static void idReportLoop() {
 	#define DIAG_MODE 1
 #endif
 
-__attribute__((unused)) static void diagLoop() {
-	static const uint16_t colors[5] = { LCD_RED, LCD_GREEN, LCD_BLUE, LCD_BLACK, LCD_WHITE };
+// No white and no black in the cycle, deliberately. A pixel the controller
+// never writes keeps whatever it last received, so with white in the rotation
+// every missed pixel ends up white and stays white - which reads as "white
+// lines" and hides which frame actually lost them. Against these four, a stale
+// pixel shows up as the wrong colour instead.
+static const uint16_t diagColors[4] = { LCD_RED, LCD_GREEN, LCD_BLUE, LCD_YELLOW };
 
+// Fills the panel through the normal drawing path: real geometry, real offsets,
+// real rotation. Once the controller is known to be alive this is the honest
+// test, because it exercises exactly what the text screen will use.
+//
+// Every other pass draws stripes instead of a flat fill, one lcdFillRect per
+// stripe, which is what tells the two failure modes apart:
+//
+//   stale pixels land on stripe boundaries   whole transactions are being lost,
+//                                            so the fault is in the command or
+//                                            window handling
+//   stale pixels scattered inside stripes    bytes are being dropped mid
+//                                            stream: a timing or signal
+//                                            integrity problem, so try
+//                                            LCD_SPI_DIV 64 or 128
+__attribute__((unused)) static void diagLoop() {
+	uint8_t ix = 0;
+	for(;;) {
+		lcdFill(diagColors[ix & 3]);
+		_delay_ms(1000);
+
+		// Eight pixel stripes, alternating, each its own window and RAMWR.
+		for(uint16_t y = 0; y < LCD_H; y += 8) {
+			uint16_t h = (y + 8 > LCD_H) ? (LCD_H - y) : 8;
+			lcdFillRect(0, y, LCD_W, h, ((y >> 3) & 1) ? LCD_MAGENTA : LCD_CYAN);
+		}
+		_delay_ms(1000);
+
+		ix++;
+	}
+}
+
+// Fills the whole frame memory instead, ignoring panel size and offsets. Keep
+// this for a panel that shows nothing at all; it addresses more memory than the
+// glass has, so gaps and edge artefacts here do not necessarily mean anything
+// is wrong with the drawing path.
+__attribute__((unused)) static void ramFloodLoop() {
 	uint8_t ix = 0;
 	for(;;) {
 		lcdInit();						// pulses RST every pass
-		lcdFillRam(colors[ix]);
+		lcdFillRam(diagColors[ix]);
 		ix++;
 		if(ix >= 5)
 			ix = 0;
@@ -208,7 +244,9 @@ int main() {
 	clockInit();
 	lcdInit();
 
-#if DIAG_MODE == 3
+#if DIAG_MODE == 4
+	ramFloodLoop();
+#elif DIAG_MODE == 3
 	idReportLoop();
 #elif DIAG_MODE == 2
 	pinTestLoop();

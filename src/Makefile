@@ -20,9 +20,10 @@ OBJECTS = $(SOURCES:.cpp=.o)
 
 # Which screen main() runs. Override on the command line: make DIAG_MODE=2
 #   0 = the real text screen
-#   1 = flood the whole frame memory with cycling colours
+#   1 = fill the panel with cycling colours, through the normal path
 #   2 = pin wiggle, no SPI at all, for checking the wiring end to end
 #   3 = read the controller ID back and report it on PB5
+#   4 = flood the raw frame memory, ignoring panel size and offsets
 DIAG_MODE ?= 1
 
 # Compile with options:
@@ -69,8 +70,8 @@ $(OBJECTS): Makefile diagmode.stamp
 .PHONY: force
 diagmode.stamp: force
 	@echo "$(DIAG_MODE)" | cmp -s - $@ || echo "$(DIAG_MODE)" > $@
-kmmain.o: st7789.h font5x7.h lcd_config.h
-st7789.o: st7789.h font5x7.h lcd_config.h
+kmmain.o: lcd.h font5x7.h lcd_config.h
+lcd.o: lcd.h font5x7.h lcd_config.h
 font5x7.o: font5x7.h
 
 # Upload step

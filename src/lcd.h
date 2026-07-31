@@ -1,5 +1,5 @@
-#ifndef ST7789_H
-#define ST7789_H
+#ifndef LCD_DRIVER_H
+#define LCD_DRIVER_H
 
 #include <stdint.h>
 #include <avr/pgmspace.h>
@@ -74,4 +74,4 @@ uint16_t lcdDrawChar(uint16_t x, uint16_t y, char c, uint16_t fg, uint16_t bg, u
 uint16_t lcdDrawText(uint16_t x, uint16_t y, const char *s, uint16_t fg, uint16_t bg, uint8_t scale = 1);
 uint16_t lcdDrawText_P(uint16_t x, uint16_t y, const char *s, uint16_t fg, uint16_t bg, uint8_t scale = 1);
 
-#endif // ST7789_H
+#endif // LCD_DRIVER_H

@@ -1,7 +1,7 @@
 #include <avr/io.h>
 #include <util/delay.h>
 
-#include "st7789.h"
+#include "lcd.h"
 #include "font5x7.h"
 
 // ---------------------------------------------------------------- registers
@@ -25,26 +25,52 @@
 #define MAD_MV  0x20
 #define MAD_BGR 0x08
 
-// The ST7789 always has 240x320 of frame memory; the panel is a window in it,
+// Each controller has a fixed frame memory and the panel is a window inside it,
 // so every address needs the offsets from lcd_config.h added. Rotating swaps
 // the axes, and mirroring counts the offset from the other end.
-#define RAM_W 240
-#define RAM_H 320
+#if LCD_CONTROLLER == LCD_ST7789
+	#define RAM_W 240
+	#define RAM_H 320
+	#define COLMOD_16BIT 0x55			// RGB and MCU interface both 16 bit
+#else
+	#define RAM_W 132
+	#define RAM_H 162
+	#define COLMOD_16BIT 0x05			// ST7735 encodes 16 bit/pixel as 5
+#endif
+
+#if LCD_BGR
+	#define MAD_ORDER MAD_BGR
+#else
+	#define MAD_ORDER 0x00
+#endif
+
+// MADCTL's MV bit swaps the axes, and the address windows follow it: in
+// landscape, CASET spans what was the memory's long side and RASET the short
+// one. Anything addressing raw frame memory has to use these rather than
+// RAM_W/RAM_H, or it writes a window that is too short on one axis and runs off
+// the end of the other.
+#if (LCD_ROTATION == 1) || (LCD_ROTATION == 3)
+	#define RAM_X_SPAN RAM_H
+	#define RAM_Y_SPAN RAM_W
+#else
+	#define RAM_X_SPAN RAM_W
+	#define RAM_Y_SPAN RAM_H
+#endif
 
 #if LCD_ROTATION == 0
-	#define MADCTL_VALUE 0x00
+	#define MADCTL_VALUE (MAD_ORDER)
 	#define OFF_X LCD_COL_OFFSET
 	#define OFF_Y LCD_ROW_OFFSET
 #elif LCD_ROTATION == 1
-	#define MADCTL_VALUE (MAD_MV | MAD_MX)
+	#define MADCTL_VALUE (MAD_MV | MAD_MX | MAD_ORDER)
 	#define OFF_X LCD_ROW_OFFSET
 	#define OFF_Y LCD_COL_OFFSET
 #elif LCD_ROTATION == 2
-	#define MADCTL_VALUE (MAD_MX | MAD_MY)
+	#define MADCTL_VALUE (MAD_MX | MAD_MY | MAD_ORDER)
 	#define OFF_X (RAM_W - LCD_PANEL_W - LCD_COL_OFFSET)
 	#define OFF_Y (RAM_H - LCD_PANEL_H - LCD_ROW_OFFSET)
 #elif LCD_ROTATION == 3
-	#define MADCTL_VALUE (MAD_MV | MAD_MY)
+	#define MADCTL_VALUE (MAD_MV | MAD_MY | MAD_ORDER)
 	#define OFF_X (RAM_H - LCD_PANEL_H - LCD_ROW_OFFSET)
 	#define OFF_Y (RAM_W - LCD_PANEL_W - LCD_COL_OFFSET)
 #else
@@ -81,13 +107,25 @@ static inline void dcData()   { LCD_CTRL_PORT.OUTSET = LCD_DC_bm; }
 //
 // Split out of lcdInit() because lcdReadRegister() has to switch SPI0 off to
 // borrow the pins, and needs to put it back afterwards.
+#if LCD_SPI_DIV == 4
+	#define LCD_SPI_PRESC SPI_PRESC_DIV4_gc
+#elif LCD_SPI_DIV == 16
+	#define LCD_SPI_PRESC SPI_PRESC_DIV16_gc
+#elif LCD_SPI_DIV == 64
+	#define LCD_SPI_PRESC SPI_PRESC_DIV64_gc
+#elif LCD_SPI_DIV == 128
+	#define LCD_SPI_PRESC SPI_PRESC_DIV128_gc
+#else
+	#error "LCD_SPI_DIV must be 4, 16, 64 or 128"
+#endif
+
 static void spiSetup() {
 #if LCD_SPI_MODE == 3
 	SPI0.CTRLB = SPI_SSD_bm | SPI_MODE_3_gc;
 #else
 	SPI0.CTRLB = SPI_SSD_bm | SPI_MODE_0_gc;
 #endif
-	SPI0.CTRLA = SPI_MASTER_bm | SPI_PRESC_DIV16_gc | SPI_ENABLE_bm;
+	SPI0.CTRLA = SPI_MASTER_bm | LCD_SPI_PRESC | SPI_ENABLE_bm;
 }
 
 static void writeCommand(uint8_t cmd) {
@@ -122,31 +160,34 @@ static void setWindow(uint16_t x, uint16_t y, uint16_t w, uint16_t h) {
 
 // --------------------------------------------------------------------- init
 
-#define ST_PORCTRL  0xB2
-#define ST_GCTRL    0xB7
-#define ST_VCOMS    0xBB
-#define ST_LCMCTRL  0xC0
-#define ST_VDVVRHEN 0xC2
-#define ST_VRHS     0xC3
-#define ST_VDVS     0xC4
-#define ST_FRCTRL2  0xC6
-#define ST_PWCTRL1  0xD0
-#define ST_PVGAMCTRL 0xE0
-#define ST_NVGAMCTRL 0xE1
-
 #if LCD_INVERT
 	#define ST_INV_CMD ST_INVON
 #else
 	#define ST_INV_CMD ST_INVOFF
 #endif
 
-// Init sequence as a flash table: command, argument count, arguments. Bit 7 of
+// Init sequences are flash tables: command, argument count, arguments. Bit 7 of
 // the count means "wait 120ms afterwards", and 0xFF ends the table. A table
 // costs far less flash than the same sequence written out as calls, mostly
-// because of the two fourteen-byte gamma writes.
+// because of the long gamma writes.
+
+#if LCD_CONTROLLER == LCD_ST7789
+
+#define ST_PORCTRL   0xB2
+#define ST_GCTRL     0xB7
+#define ST_VCOMS     0xBB
+#define ST_LCMCTRL   0xC0
+#define ST_VDVVRHEN  0xC2
+#define ST_VRHS      0xC3
+#define ST_VDVS      0xC4
+#define ST_FRCTRL2   0xC6
+#define ST_PWCTRL1   0xD0
+#define ST_PVGAMCTRL 0xE0
+#define ST_NVGAMCTRL 0xE1
+
 static const uint8_t initFull[] PROGMEM = {
 	ST_SLPOUT,   0x80,
-	ST_COLMOD,   1, 0x55,				// 16 bit/pixel, RGB565
+	ST_COLMOD,   1, COLMOD_16BIT,
 	ST_MADCTL,   1, MADCTL_VALUE,
 
 	ST_PORCTRL,  5, 0x0C, 0x0C, 0x00, 0x33, 0x33,
@@ -173,13 +214,63 @@ static const uint8_t initFull[] PROGMEM = {
 // The short sequence: enough for an ST7789V, not enough for every panel.
 static const uint8_t initMinimal[] PROGMEM = {
 	ST_SLPOUT,  0x80,
-	ST_COLMOD,  1, 0x55,
+	ST_COLMOD,  1, COLMOD_16BIT,
 	ST_MADCTL,  1, MADCTL_VALUE,
 	ST_INV_CMD, 0,
 	ST_NORON,   0,
 	ST_DISPON,  0x80,
 	0xFF
 };
+
+#else	// LCD_ST7735
+
+#define ST_FRMCTR1 0xB1
+#define ST_FRMCTR2 0xB2
+#define ST_FRMCTR3 0xB3
+#define ST_INVCTR  0xB4
+#define ST_PWCTR1  0xC0
+#define ST_PWCTR2  0xC1
+#define ST_PWCTR3  0xC2
+#define ST_PWCTR4  0xC3
+#define ST_PWCTR5  0xC4
+#define ST_VMCTR1  0xC5
+#define ST_GMCTRP1 0xE0
+#define ST_GMCTRN1 0xE1
+
+// The standard ST7735R sequence. Unlike the ST7789 this controller has no
+// usable defaults to fall back on, so there is no minimal variant: frame rate,
+// power and gamma all have to be set or the panel shows nothing worth seeing.
+static const uint8_t initFull[] PROGMEM = {
+	ST_SLPOUT,   0x80,
+
+	ST_FRMCTR1,  3, 0x01, 0x2C, 0x2D,	// frame rate, normal mode
+	ST_FRMCTR2,  3, 0x01, 0x2C, 0x2D,	// idle mode
+	ST_FRMCTR3,  6, 0x01, 0x2C, 0x2D,	// partial mode
+					0x01, 0x2C, 0x2D,
+	ST_INVCTR,   1, 0x07,				// line inversion
+
+	ST_PWCTR1,   3, 0xA2, 0x02, 0x84,
+	ST_PWCTR2,   1, 0xC5,
+	ST_PWCTR3,   2, 0x0A, 0x00,
+	ST_PWCTR4,   2, 0x8A, 0x2A,
+	ST_PWCTR5,   2, 0x8A, 0xEE,
+	ST_VMCTR1,   1, 0x0E,
+
+	ST_COLMOD,   1, COLMOD_16BIT,
+	ST_MADCTL,   1, MADCTL_VALUE,
+
+	ST_GMCTRP1, 16, 0x02, 0x1C, 0x07, 0x12, 0x37, 0x32, 0x29, 0x2D,
+					0x29, 0x25, 0x2B, 0x39, 0x00, 0x01, 0x03, 0x10,
+	ST_GMCTRN1, 16, 0x03, 0x1D, 0x07, 0x06, 0x2E, 0x2C, 0x29, 0x2D,
+					0x2E, 0x2E, 0x37, 0x3F, 0x00, 0x00, 0x02, 0x10,
+
+	ST_INV_CMD,  0,
+	ST_NORON,    0,
+	ST_DISPON,   0x80,
+	0xFF
+};
+
+#endif
 
 static void runInitTable(const uint8_t *table) {
 	for(;;) {
@@ -218,7 +309,7 @@ void lcdInit() {
 	writeCommand(ST_SWRESET);
 	_delay_ms(150);
 
-#if LCD_FULL_INIT
+#if LCD_FULL_INIT || LCD_CONTROLLER == LCD_ST7735
 	runInitTable(initFull);
 #else
 	runInitTable(initMinimal);
@@ -311,18 +402,20 @@ void lcdFillRam(uint16_t color) {
 	uint8_t lo = (uint8_t) color;
 
 	csLow();
-	// Deliberately not setWindow(): no offsets, no rotation, no panel size.
-	// Whatever part of the 240x320 memory the panel is wired to, it is in here.
+	// Deliberately not setWindow(): no offsets and no panel size, so whatever
+	// part of the frame memory the panel is wired to is covered. The rotation
+	// cannot be ignored though - MADCTL has already been set, and the address
+	// windows are in rotated space.
 	writeCommand(ST_CASET);
 	spiWrite16(0);
-	spiWrite16(RAM_W - 1);
+	spiWrite16(RAM_X_SPAN - 1);
 	writeCommand(ST_RASET);
 	spiWrite16(0);
-	spiWrite16(RAM_H - 1);
+	spiWrite16(RAM_Y_SPAN - 1);
 	writeCommand(ST_RAMWR);
 
-	for(uint16_t row = 0; row < RAM_H; row++) {
-		for(uint16_t col = 0; col < RAM_W; col++) {
+	for(uint16_t row = 0; row < RAM_Y_SPAN; row++) {
+		for(uint16_t col = 0; col < RAM_X_SPAN; col++) {
 			spiWrite(hi);
 			spiWrite(lo);
 		}
