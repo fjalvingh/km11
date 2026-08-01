@@ -304,7 +304,7 @@ static void flagDisp(const char* name, uint16_t value, const Font *font = &FontS
 // rather than blanking them.
 static KmSignals currentSignals;
 
-static uint8_t getMCP() {
+static uint8_t getMPC() {
 	return currentSignals.mpc;
 }
 
@@ -336,9 +336,9 @@ static void example() {
 
 	//-- 1st 2 lines: large text
 	const Font& font = FontLarge;
-	x = lcdDrawText_P(x, y, PSTR("MCP"), LCD_WHITE, currentBg, &font);
+	x = lcdDrawText_P(x, y, PSTR("MPC"), LCD_WHITE, currentBg, &font);
 	space(x, &font);
-	formatNumber(buf, getMCP(), 2);
+	formatNumber(buf, getMPC(), 2);
 	x = lcdDrawText(x, y, buf, LCD_GREEN, currentBg, &font);
 
 	space(x, &font);
