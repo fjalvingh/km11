@@ -272,7 +272,7 @@ __attribute__((unused)) static void textLoop() {
 	}
 }
 
-static uint16_t flagsStartY = (FontLarge.height + 1) * 2;
+static uint16_t flagsStartY = (FontLarge.height + 1) * 2 + 6;
 
 static uint8_t pcfStatus;
 static uint16_t currentBg = LCD_BLACK;
@@ -291,7 +291,7 @@ static void flagTop(const Font *font = &FontSmall) {
 // (flags & SIG_x) straight in - hence uint16_t: the U7 signals live in the high
 // byte and an uint8_t parameter would truncate every one of them to zero.
 static void flagDisp(const char* name, uint16_t value, const Font *font = &FontSmall) {
-	uint16_t color = value == 0 ? LCD_RED : LCD_YELLOW;
+	uint16_t color = value == 0 ? LCD_LIGHTRED : LCD_YELLOW;
 	lcdDrawText_P(currentFlagX, currentFlagY, name, color, currentBg, font);
 	currentFlagY += (font->height + 1);
 	if(currentFlagY + font->height > LCD_H) {
@@ -342,7 +342,7 @@ static void example() {
 	x = lcdDrawText(x, y, buf, LCD_GREEN, currentBg, &font);
 
 	space(x, &font);
-	x = lcdDrawText_P(x, y, PSTR("AMUX"), LCD_WHITE, currentBg, &font);
+	x = lcdDrawText_P(x, y, PSTR("AMUX "), LCD_WHITE, currentBg, &font);
 	formatHex0x(buf, getAMUX(), 4);
 	space(x, &font);
 	x = lcdDrawText(x, y, buf, LCD_GREEN, currentBg, &font);

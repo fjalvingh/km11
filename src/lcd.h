@@ -29,15 +29,16 @@ static inline constexpr uint16_t rgb565(uint8_t r, uint8_t g, uint8_t b) {
 	return (uint16_t)((r & 0xF8) << 8) | (uint16_t)((g & 0xFC) << 3) | (uint16_t)(b >> 3);
 }
 
-static constexpr uint16_t LCD_BLACK   = 0x0000;
-static constexpr uint16_t LCD_WHITE   = 0xFFFF;
-static constexpr uint16_t LCD_RED     = 0xF800;
-static constexpr uint16_t LCD_GREEN   = 0x07E0;
-static constexpr uint16_t LCD_BLUE    = 0x001F;
-static constexpr uint16_t LCD_YELLOW  = 0xFFE0;
-static constexpr uint16_t LCD_CYAN    = 0x07FF;
-static constexpr uint16_t LCD_MAGENTA = 0xF81F;
-static constexpr uint16_t LCD_GREY    = 0x8410;
+static constexpr uint16_t LCD_BLACK    = 0x0000;
+static constexpr uint16_t LCD_WHITE    = 0xFFFF;
+static constexpr uint16_t LCD_RED      = 0xF800;
+static constexpr uint16_t LCD_LIGHTRED = 0xFC10;	// rgb565(255, 128, 128), red washed towards white
+static constexpr uint16_t LCD_GREEN    = 0x07E0;
+static constexpr uint16_t LCD_BLUE     = 0x001F;
+static constexpr uint16_t LCD_YELLOW   = 0xFFE0;
+static constexpr uint16_t LCD_CYAN     = 0x07FF;
+static constexpr uint16_t LCD_MAGENTA  = 0xF81F;
+static constexpr uint16_t LCD_GREY     = 0x8410;
 
 // Brings up SPI0 and the panel. Call once, after the clock is set up.
 void lcdInit();
