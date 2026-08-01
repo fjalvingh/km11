@@ -24,7 +24,7 @@ OBJECTS = $(SOURCES:.cpp=.o)
 #   2 = pin wiggle, no SPI at all, for checking the wiring end to end
 #   3 = read the controller ID back and report it on PB5
 #   4 = flood the raw frame memory, ignoring panel size and offsets
-DIAG_MODE ?= 1
+DIAG_MODE ?= 0
 
 # Compile with options:
 # - All warnings (-Wall)

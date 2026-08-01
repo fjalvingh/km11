@@ -87,11 +87,16 @@
 	#define LCD_ROW_OFFSET  0
 #endif
 
-// These panels are wired blue-green-red. Inversion is off: with it on, this
-// one showed every primary as its complement - red as cyan, green as magenta,
-// blue as yellow. Plenty of 80x160 modules do want it on, so it is worth
-// flipping if a replacement panel comes out looking negative.
-#define LCD_BGR         1
+// This panel is wired red-green-blue. With BGR set it showed red and blue
+// exchanged and green untouched - blue came out red, yellow came out cyan -
+// which is the signature of that one bit. Other modules of the same type are
+// genuinely BGR, so this is worth flipping if a replacement swaps its primaries.
+//
+// Inversion is off: with it on, this one showed every primary as its
+// complement - red as cyan, green as magenta, blue as yellow. Plenty of 80x160
+// modules do want it on, so it is worth flipping if a replacement panel comes
+// out looking negative.
+#define LCD_BGR         0
 #define LCD_INVERT      0
 
 #endif
