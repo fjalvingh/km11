@@ -73,6 +73,7 @@ diagmode.stamp: force
 kmmain.o: lcd.h font5x7.h lcd_config.h
 lcd.o: lcd.h font5x7.h lcd_config.h
 font5x7.o: font5x7.h
+pcf8574.o: pcf8574.h
 
 # Upload step
 # Flash the .hex file onto the chip
