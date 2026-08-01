@@ -70,10 +70,11 @@ $(OBJECTS): Makefile diagmode.stamp
 .PHONY: force
 diagmode.stamp: force
 	@echo "$(DIAG_MODE)" | cmp -s - $@ || echo "$(DIAG_MODE)" > $@
-kmmain.o: lcd.h font5x7.h lcd_config.h
+kmmain.o: lcd.h font5x7.h lcd_config.h pcf8574.h signals.h
 lcd.o: lcd.h font5x7.h lcd_config.h
 font5x7.o: font5x7.h
 pcf8574.o: pcf8574.h
+signals.o: signals.h pcf8574.h
 
 # Upload step
 # Flash the .hex file onto the chip

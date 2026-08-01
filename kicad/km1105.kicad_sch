@@ -5817,6 +5817,26 @@
 			(embedded_fonts no)
 		)
 	)
+	(text "cin"
+		(exclude_from_sim no)
+		(at 153.924 74.168 0)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+		)
+		(uuid "0bc31264-158a-46e2-a39f-93d2486c4d3e")
+	)
+	(text "but_un*"
+		(exclude_from_sim no)
+		(at 157.226 98.552 0)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+		)
+		(uuid "47e03969-0d8f-4067-84cf-a70ad840bd90")
+	)
 	(text "km2: c1*"
 		(exclude_from_sim no)
 		(at 155.956 108.458 0)
@@ -5827,6 +5847,16 @@
 		)
 		(uuid "49c1abef-5125-450e-ab34-063283f48219")
 	)
+	(text "but_jj*"
+		(exclude_from_sim no)
+		(at 156.464 101.092 0)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+		)
+		(uuid "5025591e-3262-48b8-bd72-8038fab5e692")
+	)
 	(text "amux8..15 (km1)"
 		(exclude_from_sim no)
 		(at 100.584 88.9 0)
@@ -5836,6 +5866,36 @@
 			)
 		)
 		(uuid "5ceb2613-bcb7-4e0c-90d8-ef7c1932e698")
+	)
+	(text "spwr"
+		(exclude_from_sim no)
+		(at 155.194 69.088 0)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+		)
+		(uuid "5e134c6d-c335-4b8f-951d-546d5e1ce81d")
+	)
+	(text "ealu"
+		(exclude_from_sim no)
+		(at 155.194 71.882 0)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+		)
+		(uuid "648c5061-c54a-4347-9795-f1177ffc6c87")
+	)
+	(text "alum"
+		(exclude_from_sim no)
+		(at 154.686 76.708 0)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+		)
+		(uuid "7ba640b2-eb43-4647-a2d9-79c0d7842d17")
 	)
 	(text "amux0..7 (km1)"
 		(exclude_from_sim no)
@@ -5857,7 +5917,7 @@
 		)
 		(uuid "83021003-d0fb-48bb-8073-8ee71642c278")
 	)
-	(text "spad0..3, alu_s0..3 (km2)"
+	(text "spad0..3, alu*_s0..3 (km2)"
 		(exclude_from_sim no)
 		(at 147.066 16.51 0)
 		(effects
@@ -5877,7 +5937,17 @@
 		)
 		(uuid "9991d48a-056a-4371-840d-551ad2160194")
 	)
-	(text "mcp0..7 (km1)"
+	(text "aux_c*"
+		(exclude_from_sim no)
+		(at 156.718 103.378 0)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+		)
+		(uuid "c7e54cec-c622-48dd-89dc-ba5593ef5058")
+	)
+	(text "mpc*0..7 (km1)"
 		(exclude_from_sim no)
 		(at 100.076 16.51 0)
 		(effects
@@ -5886,6 +5956,16 @@
 			)
 		)
 		(uuid "cc89d448-c6bc-4e7d-a2e9-534e994b8699")
+	)
+	(text "cnst*"
+		(exclude_from_sim no)
+		(at 155.956 95.758 0)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+		)
+		(uuid "f293deb4-c398-40f4-91bf-b90050cf6c8d")
 	)
 	(junction
 		(at 57.15 176.53)

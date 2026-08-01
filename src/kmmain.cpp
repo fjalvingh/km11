@@ -4,6 +4,8 @@
 
 #include "lcd.h"
 #include "font5x7.h"
+#include "pcf8574.h"
+#include "signals.h"
 
 // The 20MHz fuse only selects the oscillator; the main clock still comes out of
 // a divide-by-6 prescaler after reset, so the prescaler has to be set here for
@@ -49,7 +51,13 @@ static void formatHex(char *buf, uint16_t value, uint8_t width) {
 	buf[width] = '\0';
 	for(uint8_t i = width; i-- > 0;) {
 		int c = (value % 16);
-		buf[i] = (char) ('0' + (value % 16));
+		if(c > 9)
+			c += 'A' - 10;
+		else
+			c += '0';
+
+		buf[i] = (char) c;
+
 		value /= 16;
 		if(value == 0 && i > 0) {
 			while(i-- > 0)
@@ -264,6 +272,7 @@ __attribute__((unused)) static void textLoop() {
 	}
 }
 
+static uint8_t pcfStatus;
 static uint16_t currentBg = LCD_BLACK;
 static uint16_t currentFlagX;
 static uint16_t currentFlagY = LINE_H * 2;
@@ -271,8 +280,11 @@ static uint16_t currentFlagY = LINE_H * 2;
 /**
  * Shows a flag either ON or OFF, and moves to the next FLAG position.
  */
-static void flagDisp(const char* name, uint8_t value) {
-	uint16_t color = value == 0 ? LCD_GREY : LCD_YELLOW;
+// Takes the flag word masked, not a boolean, so the caller can pass
+// (flags & SIG_x) straight in - hence uint16_t: the U7 signals live in the high
+// byte and an uint8_t parameter would truncate every one of them to zero.
+static void flagDisp(const char* name, uint16_t value) {
+	uint16_t color = value == 0 ? LCD_RED : LCD_YELLOW;
 	lcdDrawText_P(currentFlagX, currentFlagY, name, color, currentBg);
 	currentFlagY += LINE_H;
 	if(currentFlagY + LINE_H > LCD_H) {
@@ -281,27 +293,36 @@ static void flagDisp(const char* name, uint8_t value) {
 	}
 }
 
+// The last sample off the expanders. Everything the screen draws comes out of
+// here, so a failed read leaves the previous frame's numbers on the glass
+// rather than blanking them.
+static KmSignals currentSignals;
+
 static uint8_t getMCP() {
-	return 0x12;
+	return currentSignals.mpc;
 }
 
 static uint16_t getAMUX() {
-	return 0x74f2;
+	return currentSignals.amux;
 }
 
 static uint8_t getSPAD() {
-	return 0x7;
+	return currentSignals.spad;
 }
 
 static uint8_t getAluS() {
-	return 0x3;
+	return currentSignals.aluS;
 }
 
 static void example() {
-	lcdFill(currentBg);					// Clear screen
 	uint16_t x = 0;
 	uint16_t y = 0;
 	char buf[20];
+	// if(pcfStatus == 0) {
+	// 	currentBg = LCD_BLACK;
+	// } else {
+	// 	currentBg = LCD_BLUE;
+	// }
 
 #if 0	
 	int c1 = lineX(6);
@@ -349,28 +370,27 @@ static void example() {
 
 
 	currentFlagX = lineX(10);
+	currentFlagY = LINE_H * 2;			// flagDisp() leaves it wherever it ended
 
-	flagDisp(PSTR("ALUM"), 1);
-	flagDisp(PSTR("CIN"), 0);
-	flagDisp(PSTR("EALU"), 0);
-	flagDisp(PSTR("SPWR"), 1);
+	uint16_t flags = currentSignals.flags;
 
-	flagDisp(PSTR("AUXC"), 1);
-	flagDisp(PSTR("BUTJJ"), 1);
-	flagDisp(PSTR("BUTUN"), 0);
-	flagDisp(PSTR("CNST"), 1);
+	flagDisp(PSTR("ALUM"), flags & SIG_ALUM);
+	flagDisp(PSTR("CIN"), flags & SIG_CIN);
+	flagDisp(PSTR("EALU"), flags & SIG_EALU);
+	flagDisp(PSTR("SPWR"), flags & SIG_SPWR);
 
-	flagDisp(PSTR("MSYN"), 1);
-	flagDisp(PSTR("SSYN"), 0);
-	flagDisp(PSTR("C1"), 1);
-	flagDisp(PSTR("C2"), 0);
+	flagDisp(PSTR("AUXC"), flags & SIG_AUX_C);
+	flagDisp(PSTR("BUTJJ"), flags & SIG_BUT_JJ);
+	flagDisp(PSTR("BUTUN"), flags & SIG_BUT_UN);
+	flagDisp(PSTR("CNST"), flags & SIG_CNST);
 
-	flagDisp(PSTR("BUTIR"), 1);
-	flagDisp(PSTR("BBSY"), 1);
+	flagDisp(PSTR("MSYN"), flags & SIG_MSYN);
+	flagDisp(PSTR("SSYN"), flags & SIG_SSYN);
+	flagDisp(PSTR("C1"), flags & SIG_C1);
+	flagDisp(PSTR("C2"), flags & SIG_C2);
 
-
-
-
+	flagDisp(PSTR("BUTIR"), flags & SIG_BUT_IR);
+	flagDisp(PSTR("BBSY"), flags & SIG_BBSY);
 
 
 
@@ -389,7 +409,13 @@ int main() {
 #elif DIAG_MODE == 1
 	diagLoop();
 #else
-	example();
+	pcfInit();
+	lcdFill(LCD_BLACK);					// Clear screen
+	for(;;) {
+		pcfStatus = signalsRead(&currentSignals);
+		example();
+		_delay_ms(100);
+	}
 	// textLoop();
 #endif
 }
