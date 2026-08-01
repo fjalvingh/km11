@@ -23,12 +23,12 @@ static void clockInit() {
 
 // One text line is FONT_HEIGHT pixels; leave one pixel of leading between them.
 #define LINE_H (FONT_HEIGHT + 1)
-static inline uint16_t lineY(uint8_t line) {
-	return (uint16_t) line * LINE_H;
+static inline uint16_t lineY(uint8_t line, const Font *font = &FontSmall) {
+	return (uint16_t) line * (font->height + 1);
 }
 
-static inline uint16_t lineX(uint8_t column) {
-	return (uint16_t) column * FONT_CELL_W;
+static inline uint16_t lineX(uint8_t column, const Font *font = &FontSmall) {
+	return (uint16_t) column * (font->width + 1);
 }
 
 // Unsigned decimal into a caller supplied buffer, right aligned in `width` and
@@ -272,10 +272,17 @@ __attribute__((unused)) static void textLoop() {
 	}
 }
 
+static uint16_t flagsStartY = (FontLarge.height + 1) * 2;
+
 static uint8_t pcfStatus;
 static uint16_t currentBg = LCD_BLACK;
 static uint16_t currentFlagX;
-static uint16_t currentFlagY = LINE_H * 2;
+static uint16_t currentFlagY = flagsStartY;
+
+static void flagTop(const Font *font = &FontSmall) {
+	currentFlagY = flagsStartY;
+	currentFlagX += lineX(6, font);
+}
 
 /**
  * Shows a flag either ON or OFF, and moves to the next FLAG position.
@@ -283,13 +290,12 @@ static uint16_t currentFlagY = LINE_H * 2;
 // Takes the flag word masked, not a boolean, so the caller can pass
 // (flags & SIG_x) straight in - hence uint16_t: the U7 signals live in the high
 // byte and an uint8_t parameter would truncate every one of them to zero.
-static void flagDisp(const char* name, uint16_t value) {
+static void flagDisp(const char* name, uint16_t value, const Font *font = &FontSmall) {
 	uint16_t color = value == 0 ? LCD_RED : LCD_YELLOW;
-	lcdDrawText_P(currentFlagX, currentFlagY, name, color, currentBg);
-	currentFlagY += LINE_H;
-	if(currentFlagY + LINE_H > LCD_H) {
-		currentFlagY = LINE_H * 2;
-		currentFlagX += lineX(8);
+	lcdDrawText_P(currentFlagX, currentFlagY, name, color, currentBg, font);
+	currentFlagY += (font->height + 1);
+	if(currentFlagY + font->height > LCD_H) {
+		flagTop(font);
 	}
 }
 
@@ -314,6 +320,10 @@ static uint8_t getAluS() {
 	return currentSignals.aluS;
 }
 
+static void space(uint16_t& x, const Font *font = &FontSmall) {
+	x += (font->width + 1);
+}
+
 static void example() {
 	uint16_t x = 0;
 	uint16_t y = 0;
@@ -324,73 +334,66 @@ static void example() {
 	// 	currentBg = LCD_BLUE;
 	// }
 
-#if 0	
-	int c1 = lineX(6);
-
-	lcdDrawText_P(0, y, PSTR("MCP"), LCD_WHITE, currentBg);
+	//-- 1st 2 lines: large text
+	const Font& font = FontLarge;
+	x = lcdDrawText_P(x, y, PSTR("MCP"), LCD_WHITE, currentBg, &font);
+	space(x, &font);
 	formatNumber(buf, getMCP(), 2);
-	lcdDrawText(c1, y, buf, LCD_GREEN, currentBg);
+	x = lcdDrawText(x, y, buf, LCD_GREEN, currentBg, &font);
 
-	y	+= LINE_H;
-	lcdDrawText_P(0, y, PSTR("AMUX"), LCD_WHITE, currentBg);
+	space(x, &font);
+	x = lcdDrawText_P(x, y, PSTR("AMUX"), LCD_WHITE, currentBg, &font);
 	formatHex0x(buf, getAMUX(), 4);
-	lcdDrawText(c1, y, buf, LCD_GREEN, currentBg);
+	space(x, &font);
+	x = lcdDrawText(x, y, buf, LCD_GREEN, currentBg, &font);
 
-	y	+= LINE_H;
-	lcdDrawText_P(0, y, PSTR("SPAD"), LCD_WHITE, currentBg);
+	//-- NEXT LINE
+	y = lineY(1, &FontLarge);
+	x = 0;
+
+	x = lcdDrawText_P(x, y, PSTR("SPAD"), LCD_WHITE, currentBg, &font);
 	formatHex(buf, getSPAD(), 1);
-	lcdDrawText(c1, y, buf, LCD_GREEN, currentBg);
+	space(x, &font);
+	x = lcdDrawText(x, y, buf, LCD_GREEN, currentBg, &font);
 
-	y	+= LINE_H;
-	lcdDrawText_P(0, y, PSTR("ALU_S"), LCD_WHITE, currentBg);
+	space(x, &font);
+	x = lcdDrawText_P(x, y, PSTR("ALU_S"), LCD_WHITE, currentBg, &font);
 	formatHex(buf, getAluS(), 1);
-	lcdDrawText(c1, y, buf, LCD_GREEN, currentBg);
-	y	+= LINE_H;
+	space(x, &font);
+	x = lcdDrawText(x, y, buf, LCD_GREEN, currentBg, &font);
 
-#else 
-	x = lcdDrawText_P(x, y, PSTR("MCP"), LCD_WHITE, currentBg);
-	formatNumber(buf, getMCP(), 2);
-
-	x = lcdDrawText(x + FONT_CELL_W, y, buf, LCD_GREEN, currentBg);
-
-	x = lcdDrawText_P(x + FONT_CELL_W, y, PSTR("AMUX"), LCD_WHITE, currentBg);
-	formatHex0x(buf, getAMUX(), 4);
-	x = lcdDrawText(x + FONT_CELL_W, y, buf, LCD_GREEN, currentBg);
-
-	x = lcdDrawText_P(x + FONT_CELL_W, y, PSTR("SPAD"), LCD_WHITE, currentBg);
-	formatHex(buf, getSPAD(), 1);
-	x = lcdDrawText(x + FONT_CELL_W, y, buf, LCD_GREEN, currentBg);
-
-	x = lcdDrawText_P(x + FONT_CELL_W, y, PSTR("ALU_S"), LCD_WHITE, currentBg);
-	formatHex(buf, getAluS(), 1);
-	x = lcdDrawText(x + FONT_CELL_W, y, buf, LCD_GREEN, currentBg);
-
-#endif
-
-
-
-	currentFlagX = lineX(10);
-	currentFlagY = LINE_H * 2;			// flagDisp() leaves it wherever it ended
+	currentFlagX = lineX(0);
+	currentFlagY = flagsStartY;			// flagDisp() leaves it wherever it ended
 
 	uint16_t flags = currentSignals.flags;
 
-	flagDisp(PSTR("ALUM"), flags & SIG_ALUM);
-	flagDisp(PSTR("CIN"), flags & SIG_CIN);
-	flagDisp(PSTR("EALU"), flags & SIG_EALU);
-	flagDisp(PSTR("SPWR"), flags & SIG_SPWR);
+	flagDisp(PSTR("ALUM"), flags & SIG_ALUM, &font);
+	flagDisp(PSTR("CIN"), flags & SIG_CIN, &font);
+	flagDisp(PSTR("EALU"), flags & SIG_EALU, &font);
+	flagDisp(PSTR("SPWR"), flags & SIG_SPWR, &font);
 
-	flagDisp(PSTR("AUXC"), flags & SIG_AUX_C);
-	flagDisp(PSTR("BUTJJ"), flags & SIG_BUT_JJ);
-	flagDisp(PSTR("BUTUN"), flags & SIG_BUT_UN);
-	flagDisp(PSTR("CNST"), flags & SIG_CNST);
+	flagTop(&font);
+	flagDisp(PSTR("AUXC"), flags & SIG_AUX_C, &font);
+	flagDisp(PSTR("BUTJJ"), flags & SIG_BUT_JJ, &font);
+	flagDisp(PSTR("BUTUN"), flags & SIG_BUT_UN, &font);
+	flagDisp(PSTR("CNST"), flags & SIG_CNST, &font);
 
-	flagDisp(PSTR("MSYN"), flags & SIG_MSYN);
-	flagDisp(PSTR("SSYN"), flags & SIG_SSYN);
-	flagDisp(PSTR("C1"), flags & SIG_C1);
-	flagDisp(PSTR("C2"), flags & SIG_C2);
+	flagTop(&font);
+	flagDisp(PSTR("MSYN"), flags & SIG_MSYN, &font);
+	flagDisp(PSTR("SSYN"), flags & SIG_SSYN, &font);
+	flagDisp(PSTR("C1"), flags & SIG_C1, &font);
+	flagDisp(PSTR("C2"), flags & SIG_C2, &font);
 
-	flagDisp(PSTR("BUTIR"), flags & SIG_BUT_IR);
-	flagDisp(PSTR("BBSY"), flags & SIG_BBSY);
+	//-- Last two
+	// currentFlagY += font.height + 1;
+	uint16_t last = currentFlagY;
+	currentFlagX = 0;
+
+	flagDisp(PSTR("BUTIR"), flags & SIG_BUT_IR, &font);
+
+	currentFlagX = 80;
+	currentFlagY = last;
+	flagDisp(PSTR("BBSY"), flags & SIG_BBSY, &font);
 
 
 

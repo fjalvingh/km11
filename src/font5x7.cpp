@@ -97,3 +97,13 @@ const uint8_t Font5x7[] PROGMEM = {
 	0x00, 0x41, 0x36, 0x08, 0x00, // 0x7D '}'
 	0x08, 0x08, 0x2A, 0x1C, 0x08, // 0x7E '~'
 };
+
+const Font FontSmall = {
+	Font5x7,
+	FONT_FIRST_CHAR,
+	FONT_LAST_CHAR,
+	FONT_WIDTH,
+	FONT_CELL_W,	// one blank spacing column, added by the drawer
+	FONT_HEIGHT,
+	1,				// bytes per column
+};

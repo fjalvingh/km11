@@ -425,36 +425,55 @@ void lcdFillRam(uint16_t color) {
 
 // --------------------------------------------------------------------- text
 
-uint16_t lcdDrawChar(uint16_t x, uint16_t y, char c, uint16_t fg, uint16_t bg, uint8_t scale) {
+uint16_t lcdDrawChar(uint16_t x, uint16_t y, char c, uint16_t fg, uint16_t bg, const Font *font, uint8_t scale) {
 	if(scale == 0)
 		scale = 1;
 
-	// The glyph is five flash bytes, one per pixel column, plus one blank
-	// column of spacing. Pulling them into RAM first costs six bytes of stack
-	// and saves re-reading flash for every scaled row.
-	uint8_t cols[FONT_CELL_W];
+	uint8_t width = font->width;
+	uint8_t cells = font->cellW;			// includes the spacing columns
+	uint8_t rows = font->height;
+	uint8_t bpc = font->bytesPerCol;
+	if(cells > FONT_MAX_CELL_W)
+		cells = FONT_MAX_CELL_W;
+
+	// The glyph is a handful of flash bytes, one column at a time, plus any
+	// blank spacing columns. Pulling them into RAM first costs sixteen bytes of
+	// stack and saves re-reading flash for every scaled row. Sixteen rows is the
+	// most a uint16_t column holds, which is what the 8x16 font needs.
+	uint16_t cols[FONT_MAX_CELL_W];
 	uint8_t ix = (uint8_t) c;
-	if(ix < FONT_FIRST_CHAR || ix > FONT_LAST_CHAR) {
-		for(uint8_t i = 0; i < FONT_CELL_W; i++)
+	if(ix < font->first || ix > font->last) {
+		for(uint8_t i = 0; i < cells; i++)
 			cols[i] = 0;
 	} else {
-		const uint8_t *glyph = &Font5x7[(uint16_t) (ix - FONT_FIRST_CHAR) * FONT_WIDTH];
-		for(uint8_t i = 0; i < FONT_WIDTH; i++)
-			cols[i] = pgm_read_byte(glyph + i);
-		cols[FONT_WIDTH] = 0;
+		const uint8_t *glyph = font->data + (uint16_t) (ix - font->first) * width * bpc;
+		for(uint8_t i = 0; i < cells; i++) {
+			if(i >= width) {
+				cols[i] = 0;
+				continue;
+			}
+			uint16_t v = pgm_read_byte(glyph);
+			glyph++;
+			if(bpc > 1) {
+				v |= (uint16_t) pgm_read_byte(glyph) << 8;
+				glyph++;
+			}
+			cols[i] = v;
+		}
 	}
 
-	uint16_t cellW = (uint16_t) FONT_CELL_W * scale;
-	uint16_t cellH = (uint16_t) FONT_HEIGHT * scale;
+	uint16_t cellW = (uint16_t) cells * scale;
+	uint16_t cellH = (uint16_t) rows * scale;
 
 	csLow();
 	setWindow(x, y, cellW, cellH);
 	// Row major, because that is the order the panel consumes pixels in: for
-	// every row of the cell we walk the column bytes and pick out one bit.
-	for(uint8_t row = 0; row < FONT_HEIGHT; row++) {
+	// every row of the cell we walk the column words and pick out one bit.
+	for(uint8_t row = 0; row < rows; row++) {
+		uint16_t mask = (uint16_t) 1 << row;
 		for(uint8_t sy = 0; sy < scale; sy++) {
-			for(uint8_t col = 0; col < FONT_CELL_W; col++) {
-				uint16_t px = (cols[col] & (1 << row)) ? fg : bg;
+			for(uint8_t col = 0; col < cells; col++) {
+				uint16_t px = (cols[col] & mask) ? fg : bg;
 				for(uint8_t sx = 0; sx < scale; sx++)
 					spiWrite16(px);
 			}
@@ -465,18 +484,18 @@ uint16_t lcdDrawChar(uint16_t x, uint16_t y, char c, uint16_t fg, uint16_t bg, u
 	return x + cellW;
 }
 
-uint16_t lcdDrawText(uint16_t x, uint16_t y, const char *s, uint16_t fg, uint16_t bg, uint8_t scale) {
+uint16_t lcdDrawText(uint16_t x, uint16_t y, const char *s, uint16_t fg, uint16_t bg, const Font *font, uint8_t scale) {
 	while(*s != '\0')
-		x = lcdDrawChar(x, y, *s++, fg, bg, scale);
+		x = lcdDrawChar(x, y, *s++, fg, bg, font, scale);
 	return x;
 }
 
-uint16_t lcdDrawText_P(uint16_t x, uint16_t y, const char *s, uint16_t fg, uint16_t bg, uint8_t scale) {
+uint16_t lcdDrawText_P(uint16_t x, uint16_t y, const char *s, uint16_t fg, uint16_t bg, const Font *font, uint8_t scale) {
 	for(;;) {
 		char c = (char) pgm_read_byte(s++);
 		if(c == '\0')
 			break;
-		x = lcdDrawChar(x, y, c, fg, bg, scale);
+		x = lcdDrawChar(x, y, c, fg, bg, font, scale);
 	}
 	return x;
 }

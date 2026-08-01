@@ -44,7 +44,9 @@ make fuse                # one-time: fuse2=0x7e for the 20MHz oscillator
 `avr-size` output is the budget check — watch `data + bss` against 2048 bytes. The design rule that
 follows from that: **no frame buffer, ever.** A 128x160 RGB565 frame is 40K, a 76x284 one 43K. The
 driver (`lcd.cpp`) streams pixels out of SPI0 as it computes them and draws text one glyph at a time,
-each glyph opening its own 6x8 window; the 5x7 font lives in flash and is read with `pgm_read_byte`.
+each glyph opening its own window. Fonts live in flash and are read with `pgm_read_byte`, described by
+a `Font` struct (`font.h`): `FontSmall` is the 5x7 in a 6x8 cell, `FontLarge` an 8x16 converted from
+Terminus. The drawing calls take a `const Font *` (defaulting to `FontSmall`) plus an integer `scale`.
 Keep any new drawing code to that pattern, and use `PSTR`/`lcdDrawText_P` for fixed strings so
 literals stay out of RAM. `const` tables do *not* need `PROGMEM` on this core — avr-gcc maps `.rodata`
 into flash for `__AVR_ARCH__ 103` — but the font uses it harmlessly.

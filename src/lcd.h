@@ -5,6 +5,7 @@
 #include <avr/pgmspace.h>
 
 #include "lcd_config.h"
+#include "font.h"
 
 // Minimal ST7789 driver for the KM11 module.
 //
@@ -63,15 +64,19 @@ void lcdFillRam(uint16_t color);
 // commands: 0x04 RDDID, 0x09 RDDST, 0x0A RDDPM (power mode).
 void lcdReadRegister(uint8_t cmd, uint8_t *out, uint8_t count);
 
-// Draws one glyph in a FONT_CELL_W x FONT_HEIGHT cell (6x8, times scale) with
-// the background painted in the same pass, and returns the x of the next cell.
-// Characters outside 0x20..0x7E are drawn as a blank cell.
-uint16_t lcdDrawChar(uint16_t x, uint16_t y, char c, uint16_t fg, uint16_t bg, uint8_t scale = 1);
+// Draws one glyph in a font->cellW x font->height cell (times scale) with the
+// background painted in the same pass, and returns the x of the next cell.
+// Characters outside the font's range are drawn as a blank cell.
+//
+// `font` is FontSmall (5x7 in a 6x8 cell) or FontLarge (8x16); scale is on top
+// of that, so FontSmall at scale 2 and FontLarge are the same height but the
+// latter is a real font rather than doubled pixels.
+uint16_t lcdDrawChar(uint16_t x, uint16_t y, char c, uint16_t fg, uint16_t bg, const Font *font = &FontSmall, uint8_t scale = 1);
 
 // Draws a NUL terminated string, returning the x just past the last cell.
 // lcdDrawText_P takes a string in flash: use it for fixed text, it keeps the
 // literal out of RAM.
-uint16_t lcdDrawText(uint16_t x, uint16_t y, const char *s, uint16_t fg, uint16_t bg, uint8_t scale = 1);
-uint16_t lcdDrawText_P(uint16_t x, uint16_t y, const char *s, uint16_t fg, uint16_t bg, uint8_t scale = 1);
+uint16_t lcdDrawText(uint16_t x, uint16_t y, const char *s, uint16_t fg, uint16_t bg, const Font *font = &FontSmall, uint8_t scale = 1);
+uint16_t lcdDrawText_P(uint16_t x, uint16_t y, const char *s, uint16_t fg, uint16_t bg, const Font *font = &FontSmall, uint8_t scale = 1);
 
 #endif // LCD_DRIVER_H
