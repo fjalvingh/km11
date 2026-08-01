@@ -25,6 +25,10 @@ static inline uint16_t lineY(uint8_t line) {
 	return (uint16_t) line * LINE_H;
 }
 
+static inline uint16_t lineX(uint8_t column) {
+	return (uint16_t) column * FONT_CELL_W;
+}
+
 // Unsigned decimal into a caller supplied buffer, right aligned in `width` and
 // space padded. Small enough to be worth having instead of pulling in printf,
 // which would cost well over a kilobyte of flash.
@@ -39,6 +43,26 @@ static void formatNumber(char *buf, uint16_t value, uint8_t width) {
 			break;
 		}
 	}
+}
+
+static void formatHex(char *buf, uint16_t value, uint8_t width) {
+	buf[width] = '\0';
+	for(uint8_t i = width; i-- > 0;) {
+		int c = (value % 16);
+		buf[i] = (char) ('0' + (value % 16));
+		value /= 16;
+		if(value == 0 && i > 0) {
+			while(i-- > 0)
+				buf[i] = '0';
+			break;
+		}
+	}
+}
+
+static void formatHex0x(char* buf, uint16_t value, uint16_t width) {
+	*buf++  = '0';
+	*buf++ = 'x';
+	formatHex(buf, value, width);
 }
 
 // Paints a test pattern: a title, some coloured signal-ish text, and the whole
@@ -240,6 +264,118 @@ __attribute__((unused)) static void textLoop() {
 	}
 }
 
+static uint16_t currentBg = LCD_BLACK;
+static uint16_t currentFlagX;
+static uint16_t currentFlagY = LINE_H * 2;
+
+/**
+ * Shows a flag either ON or OFF, and moves to the next FLAG position.
+ */
+static void flagDisp(const char* name, uint8_t value) {
+	uint16_t color = value == 0 ? LCD_GREY : LCD_YELLOW;
+	lcdDrawText_P(currentFlagX, currentFlagY, name, color, currentBg);
+	currentFlagY += LINE_H;
+	if(currentFlagY + LINE_H > LCD_H) {
+		currentFlagY = LINE_H * 2;
+		currentFlagX += lineX(8);
+	}
+}
+
+static uint8_t getMCP() {
+	return 0x12;
+}
+
+static uint16_t getAMUX() {
+	return 0x74f2;
+}
+
+static uint8_t getSPAD() {
+	return 0x7;
+}
+
+static uint8_t getAluS() {
+	return 0x3;
+}
+
+static void example() {
+	lcdFill(currentBg);					// Clear screen
+	uint16_t x = 0;
+	uint16_t y = 0;
+	char buf[20];
+
+#if 0	
+	int c1 = lineX(6);
+
+	lcdDrawText_P(0, y, PSTR("MCP"), LCD_WHITE, currentBg);
+	formatNumber(buf, getMCP(), 2);
+	lcdDrawText(c1, y, buf, LCD_GREEN, currentBg);
+
+	y	+= LINE_H;
+	lcdDrawText_P(0, y, PSTR("AMUX"), LCD_WHITE, currentBg);
+	formatHex0x(buf, getAMUX(), 4);
+	lcdDrawText(c1, y, buf, LCD_GREEN, currentBg);
+
+	y	+= LINE_H;
+	lcdDrawText_P(0, y, PSTR("SPAD"), LCD_WHITE, currentBg);
+	formatHex(buf, getSPAD(), 1);
+	lcdDrawText(c1, y, buf, LCD_GREEN, currentBg);
+
+	y	+= LINE_H;
+	lcdDrawText_P(0, y, PSTR("ALU_S"), LCD_WHITE, currentBg);
+	formatHex(buf, getAluS(), 1);
+	lcdDrawText(c1, y, buf, LCD_GREEN, currentBg);
+	y	+= LINE_H;
+
+#else 
+	x = lcdDrawText_P(x, y, PSTR("MCP"), LCD_WHITE, currentBg);
+	formatNumber(buf, getMCP(), 2);
+
+	x = lcdDrawText(x + FONT_CELL_W, y, buf, LCD_GREEN, currentBg);
+
+	x = lcdDrawText_P(x + FONT_CELL_W, y, PSTR("AMUX"), LCD_WHITE, currentBg);
+	formatHex0x(buf, getAMUX(), 4);
+	x = lcdDrawText(x + FONT_CELL_W, y, buf, LCD_GREEN, currentBg);
+
+	x = lcdDrawText_P(x + FONT_CELL_W, y, PSTR("SPAD"), LCD_WHITE, currentBg);
+	formatHex(buf, getSPAD(), 1);
+	x = lcdDrawText(x + FONT_CELL_W, y, buf, LCD_GREEN, currentBg);
+
+	x = lcdDrawText_P(x + FONT_CELL_W, y, PSTR("ALU_S"), LCD_WHITE, currentBg);
+	formatHex(buf, getAluS(), 1);
+	x = lcdDrawText(x + FONT_CELL_W, y, buf, LCD_GREEN, currentBg);
+
+#endif
+
+
+
+	currentFlagX = lineX(10);
+
+	flagDisp(PSTR("ALUM"), 1);
+	flagDisp(PSTR("CIN"), 0);
+	flagDisp(PSTR("EALU"), 0);
+	flagDisp(PSTR("SPWR"), 1);
+
+	flagDisp(PSTR("AUXC"), 1);
+	flagDisp(PSTR("BUTJJ"), 1);
+	flagDisp(PSTR("BUTUN"), 0);
+	flagDisp(PSTR("CNST"), 1);
+
+	flagDisp(PSTR("MSYN"), 1);
+	flagDisp(PSTR("SSYN"), 0);
+	flagDisp(PSTR("C1"), 1);
+	flagDisp(PSTR("C2"), 0);
+
+	flagDisp(PSTR("BUTIR"), 1);
+	flagDisp(PSTR("BBSY"), 1);
+
+
+
+
+
+
+
+}
+
 int main() {
 	clockInit();
 	lcdInit();
@@ -253,6 +389,7 @@ int main() {
 #elif DIAG_MODE == 1
 	diagLoop();
 #else
-	textLoop();
+	example();
+	// textLoop();
 #endif
 }

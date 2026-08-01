@@ -36,25 +36,50 @@ Bare-metal C++ for the ATtiny1616 (16K flash, **2K SRAM**), built with `avr-g++`
 
 ```bash
 cd src
-make            # compile + link + avr-size
-make upload     # avrdude over serialupdi on /dev/ttyUSB0
-make fuse       # one-time: fuse2=0x7e for the 20MHz oscillator
+make                     # compile + link + avr-size
+make DIAG_MODE=1 upload  # avrdude over serialupdi; see the diagnostic ladder below
+make fuse                # one-time: fuse2=0x7e for the 20MHz oscillator
 ```
 
 `avr-size` output is the budget check — watch `data + bss` against 2048 bytes. The design rule that
-follows from that: **no frame buffer, ever.** A 76x284 RGB565 frame is 43K. The ST7789 driver
-(`st7789.cpp`) streams pixels out of SPI0 as it computes them and draws text one glyph at a time, each
-glyph opening its own 6x8 window; the 5x7 font lives in flash and is read with `pgm_read_byte`. Keep
-any new drawing code to that pattern, and use `PSTR`/`lcdDrawText_P` for fixed strings so literals stay
-out of RAM.
+follows from that: **no frame buffer, ever.** A 128x160 RGB565 frame is 40K, a 76x284 one 43K. The
+driver (`lcd.cpp`) streams pixels out of SPI0 as it computes them and draws text one glyph at a time,
+each glyph opening its own 6x8 window; the 5x7 font lives in flash and is read with `pgm_read_byte`.
+Keep any new drawing code to that pattern, and use `PSTR`/`lcdDrawText_P` for fixed strings so
+literals stay out of RAM. `const` tables do *not* need `PROGMEM` on this core — avr-gcc maps `.rodata`
+into flash for `__AVR_ARCH__ 103` — but the font uses it harmlessly.
 
-`lcd_config.h` holds every hardware-dependent number (pins, panel size, RAM offsets, rotation). The
-`LCD_COL_OFFSET` / `LCD_ROW_OFFSET` pair is the usual suspect when the image is shifted or wrapped —
-the ST7789 has 240x320 of memory and the 76x284 panel is a window inside it.
+The board runs at **3.3V**, where the 1616 is rated for 10MHz, not 20. `clockInit()` therefore sets
+the prescaler to /2 rather than switching it off, and `CLOCK` in the Makefile is the post-prescaler
+speed. Do not "fix" this back to 20MHz.
 
-Note that the 20MHz fuse only picks the oscillator: `clockInit()` in `kmmain.cpp` clears
-`CLKCTRL.MCLKCTRLB` to switch off the reset-default divide-by-6, without which F_CPU, `_delay_ms` and
-the SPI clock are all six times off.
+`lcd_config.h` holds everything hardware-dependent. `LCD_CONTROLLER` picks between two panels, each
+with its own geometry, offsets, colour order and inversion:
+
+- `LCD_ST7789` — the M35-2.25TFT-lanban 76x284 ST7789P3 the KM11 board is designed around. **Never
+  yet produced an image**; its offsets (82/18) and `LCD_VCOM` are unverified estimates.
+- `LCD_ST7735` — a 128x160 1.8" board used for bring-up. Working.
+
+### Bringing up a display
+
+`DIAG_MODE` (a Makefile variable, not a source edit) is a ladder, each rung dropping more assumptions
+than the last. Reach for it before theorising:
+
+| Mode | What it does | What it proves |
+|---|---|---|
+| 0 | the real text screen | everything |
+| 1 | flat fills and stripes via the normal path | geometry, offsets, rotation |
+| 4 | floods raw frame memory, ignoring panel size | the controller is listening at all |
+| 3 | reads the controller ID back over SDA, reports it on PB5 | traffic goes both ways |
+| 2 | wiggles each pin at its own frequency, no SPI | the wiring, end to end |
+
+Reading the symptoms: colours arriving as their exact complements means `LCD_INVERT` is wrong.
+Unwritten bands whose width matches an offset mean the panel geometry is wrong. A screen that stays
+plain white while the signals look perfect is usually VCOM or an incomplete init, not the link.
+
+**Before a long debugging session, try a second physical panel.** These cheap modules are of variable
+quality; one 128x160 board wasted a session with pixels it never wrote, and an identical replacement
+worked immediately with no firmware change.
 
 ## Netlist conventions
 
