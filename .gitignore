@@ -24,6 +24,12 @@ fp-info-cache
 *.elf
 *.hex
 
+# Python crap
+.venv
+.pyc
+__pycache__
+
+
 
 
 *.stamp
