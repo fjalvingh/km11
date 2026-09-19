@@ -51,9 +51,20 @@ Keep any new drawing code to that pattern, and use `PSTR`/`lcdDrawText_P` for fi
 literals stay out of RAM. `const` tables do *not* need `PROGMEM` on this core — avr-gcc maps `.rodata`
 into flash for `__AVR_ARCH__ 103` — but the font uses it harmlessly.
 
-The board runs at **3.3V**, where the 1616 is rated for 10MHz, not 20. `clockInit()` therefore sets
-the prescaler to /2 rather than switching it off, and `CLOCK` in the Makefile is the post-prescaler
-speed. Do not "fix" this back to 20MHz.
+`clockInit()` sets the main clock prescaler to /2, so the core runs at 10MHz; `CLOCK` in the Makefile
+is that post-prescaler speed. Leave it: nothing here needs 20MHz and the SPI dividers are tuned to 10.
+
+**Supply levels: the schematic has U1 on +5V** (netlist, `U1.1 -> +5V`) with only the display supply
+at J2.15/17 on U9's 3.3V, so the five display lines leave the ATtiny at 5V and hit a 3.3V controller
+with nothing in between. That mismatch is real and the next board spin should carry a level shifter
+(74LVC245/125 on the 3.3V rail) - the bare 76x284 panel will not tolerate 5V at all. But it was **not**
+the cause of the September 2026 display failure, and neither was the ribbon: after two days of chasing
+white-outs, crosstalk and series resistors, the fault was the 128x160 module itself, which had tested
+fine in July and had degraded since. A second module worked at once. The symptom of a marginal panel
+is that it *responds* to edge rate, supply voltage and resistors, so it looks exactly like a signal
+integrity problem. Swap the panel before believing any of that. As of September 2026 the board runs
+exactly this way - U1 and the expanders at 5V, the 128x160 module at 3.3V, straight through the
+ribbon with no resistors - and a healthy module is stable on it at 625kHz.
 
 `lcd_config.h` holds everything hardware-dependent. `LCD_CONTROLLER` picks between two panels, each
 with its own geometry, offsets, colour order and inversion:
@@ -79,9 +90,25 @@ Reading the symptoms: colours arriving as their exact complements means `LCD_INV
 Unwritten bands whose width matches an offset mean the panel geometry is wrong. A screen that stays
 plain white while the signals look perfect is usually VCOM or an incomplete init, not the link.
 
-**Before a long debugging session, try a second physical panel.** These cheap modules are of variable
-quality; one 128x160 board wasted a session with pixels it never wrote, and an identical replacement
-worked immediately with no firmware change.
+Other command-line knobs, all rebuild automatically via `diagmode.stamp`:
+
+- `make LCD_SPI_DIV=128 upload` — SPI divider 4/16/64/128 (2.5MHz/625kHz/156kHz/78kHz). Default 16.
+- `make EXTRA="-DLOOP_DELAY_MS=1000 -DNO_I2C" upload` — stretch the idle gap between frames and/or
+  leave the expanders untouched, to separate what the bus does from what the drawing does.
+- `make EXTRA=-DLCD_OPEN_DRAIN=1 upload` — bit-bang every display line open-drain (never driving a
+  high, ~50kHz). Slow, gentle edges at reduced level: a panel that only works in this mode is either
+  marginal itself (most likely, see above) or genuinely suffering from the level mismatch.
+- `make EXTRA=-DLCD_DC_UNDER_CS=1 upload` — move the DC edges to moments when CS is high, so a glitch
+  coupled from DC into SCK cannot count as a clock. For "first pixels after each command are wrong".
+- `RESET_DIAG` (default 1) prints `Rxx Bnn Fnnn` bottom-right in mode 0: last reset cause from
+  `RSTCTRL.RSTFR`, a `.noinit` boot counter, and a frame counter. `R21 B01` with `F` counting is a
+  healthy MCU; a rising `B` means it is restarting, `F` frozen means it is hung.
+
+**Before a long debugging session, try a second physical panel. Then try a third.** These cheap
+modules are of variable quality and they degrade: one 128x160 board wasted a session with pixels it
+never wrote; another tested fine in July 2026 and cost two days in September behaving like a cable
+problem. In both cases an identical replacement worked immediately with no firmware change. Run the
+ladder above only after a known-good panel has failed on the same wiring.
 
 ## Netlist conventions
 

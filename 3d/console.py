@@ -103,9 +103,12 @@ ped_screw_x = 30.0     # mm - pedestal screw positions, +/- x
 ped_screw_y = (42.0, 50.0)     # mm - pedestal screw positions, y
 ped_pilot_depth = 8.0  # mm - how far the pilot goes into the pedestal
 
-# Cable: 20-way 1.27mm ribbon is 25.4 mm wide
-cable_w = 28.0         # mm - slot width
-cable_h = 8.0          # mm - slot height
+# Cable: 20-way 1.27mm ribbon is 25.4 mm wide. The slot is centred on the
+# display, not the box, so the ribbon runs straight back off the module and
+# clears the +x pair of clamp posts.
+cable_w = 25.0         # mm - slot width
+cable_h = 2.5          # mm - slot height
+cable_x = disp_cx      # mm - slot centre, x
 cable_z = -15.0        # mm - slot centre, box-frame z
 
 # Pedestal
@@ -200,7 +203,7 @@ shell = shell.cut(posts(sw_pts, sw_hole_d, -panel_t - eps, eps))
 shell = shell.cut(posts(lid_screw_pts, pilot_d, -shell_d - eps, -panel_t + 2.0))
 
 # cable slot through the back wall
-shell = shell.cut(blk(-cable_w / 2, cable_w / 2, box_l - wall - eps, box_l + eps,
+shell = shell.cut(blk(cable_x - cable_w / 2, cable_x + cable_w / 2, box_l - wall - eps, box_l + eps,
                       cable_z - cable_h / 2, cable_z + cable_h / 2))
 
 # ============================================================
@@ -290,3 +293,5 @@ print(f"switch holes d{sw_hole_d} at x={sw_pts[0][0]}/{sw_pts[2][0]}, "
 print(f"gap PCB to nearest switch nut: "
       f"{sw_pts[0][0] - 5.775 - (disp_cx + disp_pcb_w / 2):.2f} mm")
 print(f"display clamp posts {disp_post_top + shell_d:.1f} mm tall")
+print(f"cable slot {cable_w} x {cable_h} at x {cable_x - cable_w / 2:.2f}..{cable_x + cable_w / 2:.2f}, "
+      f"posts at x={disp_post_pts[0][0]:.2f}/{disp_post_pts[2][0]:.2f}")

@@ -79,6 +79,51 @@
 
 // --------------------------------------------------------------- spi + pins
 
+#if LCD_OPEN_DRAIN
+// Diagnostic drive mode (make EXTRA=-DLCD_OPEN_DRAIN=1). The ATtiny sits on 5V
+// and the panel on 3.3V with nothing between them, so every driven high pushes
+// current through the panel's input clamps into its supply rail. Here a high is
+// never driven: the pin is released and its internal pull-up (about 35k) lets
+// the line rise, which limits that current to some 100uA. The hardware SPI
+// cannot do this, so the bytes are bit-banged and the whole thing is slow -
+// around 50kHz, the pull-up against the ribbon's capacitance sets the pace. If
+// the picture holds in this mode and not in the normal one, the fault is the
+// level mismatch, and series resistors or a level shifter are the cure.
+static inline void odLow(PORT_t &port, uint8_t bm)  { port.OUTCLR = bm; port.DIRSET = bm; }
+static inline void odHigh(PORT_t &port, uint8_t bm) { port.DIRCLR = bm; }
+
+static inline void spiWrite(uint8_t v) {
+	for(uint8_t bit = 0; bit < 8; bit++) {
+		if(v & 0x80) odHigh(LCD_SPI_PORT, LCD_MOSI_bm); else odLow(LCD_SPI_PORT, LCD_MOSI_bm);
+		_delay_us(8);						// let MOSI settle through the pull-up
+		odHigh(LCD_SPI_PORT, LCD_SCK_bm);	// panel samples on the rising edge
+		_delay_us(8);
+		odLow(LCD_SPI_PORT, LCD_SCK_bm);
+		v <<= 1;
+	}
+}
+
+static inline void csLow()    { odLow(LCD_SPI_PORT, LCD_CS_bm); }
+static inline void csHigh()   { odHigh(LCD_SPI_PORT, LCD_CS_bm); }
+static inline void dcCommand(){ odLow(LCD_CTRL_PORT, LCD_DC_bm); }
+static inline void dcData()   { odHigh(LCD_CTRL_PORT, LCD_DC_bm); }
+static inline void rstLow()   { odLow(LCD_CTRL_PORT, LCD_RST_bm); }
+static inline void rstHigh()  { odHigh(LCD_CTRL_PORT, LCD_RST_bm); }
+
+// Pull-ups on, everything released; SPI0 stays off so the port owns PA1/PA3.
+static void pinSetup() {
+	LCD_SPI_PORT.PIN1CTRL = PORT_PULLUPEN_bm;
+	LCD_SPI_PORT.PIN3CTRL = PORT_PULLUPEN_bm;
+	LCD_SPI_PORT.PIN4CTRL = PORT_PULLUPEN_bm;
+	LCD_CTRL_PORT.PIN2CTRL = PORT_PULLUPEN_bm;
+	LCD_CTRL_PORT.PIN3CTRL = PORT_PULLUPEN_bm;
+	odHigh(LCD_SPI_PORT, LCD_CS_bm | LCD_MOSI_bm);
+	odLow(LCD_SPI_PORT, LCD_SCK_bm);		// mode 0: clock idles low
+	odHigh(LCD_CTRL_PORT, LCD_DC_bm | LCD_RST_bm);
+}
+
+#else
+
 static inline uint8_t spiTransfer(uint8_t v) {
 	SPI0.DATA = v;
 	while(!(SPI0.INTFLAGS & SPI_IF_bm))
@@ -90,15 +135,28 @@ static inline void spiWrite(uint8_t v) {
 	(void) spiTransfer(v);
 }
 
-static inline void spiWrite16(uint16_t v) {
-	spiWrite((uint8_t) (v >> 8));
-	spiWrite((uint8_t) v);
-}
-
 static inline void csLow()    { LCD_SPI_PORT.OUTCLR = LCD_CS_bm; }
 static inline void csHigh()   { LCD_SPI_PORT.OUTSET = LCD_CS_bm; }
 static inline void dcCommand(){ LCD_CTRL_PORT.OUTCLR = LCD_DC_bm; }
 static inline void dcData()   { LCD_CTRL_PORT.OUTSET = LCD_DC_bm; }
+static inline void rstLow()   { LCD_CTRL_PORT.OUTCLR = LCD_RST_bm; }
+static inline void rstHigh()  { LCD_CTRL_PORT.OUTSET = LCD_RST_bm; }
+
+// CS, DC and RST idle high; MOSI and SCK are driven by SPI0 but still need to
+// be outputs.
+static void pinSetup() {
+	LCD_SPI_PORT.OUTSET = LCD_CS_bm;
+	LCD_SPI_PORT.DIRSET = LCD_CS_bm | LCD_MOSI_bm | LCD_SCK_bm;
+	LCD_CTRL_PORT.OUTSET = LCD_DC_bm | LCD_RST_bm;
+	LCD_CTRL_PORT.DIRSET = LCD_DC_bm | LCD_RST_bm;
+}
+
+#endif
+
+static inline void spiWrite16(uint16_t v) {
+	spiWrite((uint8_t) (v >> 8));
+	spiWrite((uint8_t) v);
+}
 
 // Master, mode 0, F_CPU/16 (625kHz at 10MHz): slow enough to survive the wiring
 // out to the display. Add SPI_CLK2X_bm to double it, or go to SPI_PRESC_DIV4_gc
@@ -120,6 +178,10 @@ static inline void dcData()   { LCD_CTRL_PORT.OUTSET = LCD_DC_bm; }
 #endif
 
 static void spiSetup() {
+#if LCD_OPEN_DRAIN
+	SPI0.CTRLA = 0;
+	return;
+#endif
 #if LCD_SPI_MODE == 3
 	SPI0.CTRLB = SPI_SSD_bm | SPI_MODE_3_gc;
 #else
@@ -128,7 +190,24 @@ static void spiSetup() {
 	SPI0.CTRLA = SPI_MASTER_bm | LCD_SPI_PRESC | SPI_ENABLE_bm;
 }
 
+// Every caller holds CS low around this. With LCD_DC_UNDER_CS the DC edges are
+// moved to moments when CS is high: the panel ignores its clock while
+// deselected, so a glitch that a DC edge couples into SCK on the ribbon can no
+// longer count as a bit. The controller keeps its command state across a CS
+// deassertion, only the byte counter resets, so the parameters and pixel data
+// that follow still belong to the command.
 static void writeCommand(uint8_t cmd) {
+#if LCD_DC_UNDER_CS
+	csHigh();
+	dcCommand();
+	_delay_us(1);
+	csLow();
+	spiWrite(cmd);
+	csHigh();
+	dcData();
+	_delay_us(1);
+	csLow();
+#else
 	dcCommand();
 #if LCD_STRETCH_DC
 	_delay_us(200);
@@ -138,6 +217,7 @@ static void writeCommand(uint8_t cmd) {
 	_delay_us(200);
 #endif
 	dcData();
+#endif
 }
 
 // Opens a write window and leaves the panel expecting pixel data.
@@ -289,19 +369,13 @@ static void runInitTable(const uint8_t *table) {
 }
 
 void lcdInit() {
-	// CS, DC and RST idle high; MOSI and SCK are driven by SPI0 but still need
-	// to be outputs.
-	LCD_SPI_PORT.OUTSET = LCD_CS_bm;
-	LCD_SPI_PORT.DIRSET = LCD_CS_bm | LCD_MOSI_bm | LCD_SCK_bm;
-	LCD_CTRL_PORT.OUTSET = LCD_DC_bm | LCD_RST_bm;
-	LCD_CTRL_PORT.DIRSET = LCD_DC_bm | LCD_RST_bm;
-
+	pinSetup();
 	spiSetup();
 
 	// Hardware reset.
-	LCD_CTRL_PORT.OUTCLR = LCD_RST_bm;
+	rstLow();
 	_delay_ms(10);
-	LCD_CTRL_PORT.OUTSET = LCD_RST_bm;
+	rstHigh();
 	_delay_ms(120);
 
 	csLow();

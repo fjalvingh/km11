@@ -1,6 +1,6 @@
 # Define variables that may change between projects
 FILENAME = kmmain
-PORT = /dev/ttyUSB0
+PORT = /dev/ttyUSB1
 DEVICE = attiny1616
 PROGRAMMER = serialupdi
 
@@ -26,6 +26,18 @@ OBJECTS = $(SOURCES:.cpp=.o)
 #   4 = flood the raw frame memory, ignoring panel size and offsets
 DIAG_MODE ?= 0
 
+# SPI clock divider for the display: 4, 16, 64 or 128 (2.5MHz, 625kHz, 156kHz,
+# 78kHz at 10MHz). Override on the command line to test a long cable:
+#   make LCD_SPI_DIV=128 upload
+# The default lives in lcd_config.h.
+LCD_SPI_DIV ?=
+ifneq ($(LCD_SPI_DIV),)
+SPI_DIV_FLAG = -DLCD_SPI_DIV=$(LCD_SPI_DIV)
+endif
+
+# Any extra -D flags for one-off experiments: make EXTRA=-DLOOP_DELAY_MS=1000
+EXTRA ?=
+
 # Compile with options:
 # - All warnings (-Wall)
 # - Optimized for size (-0s)
@@ -36,7 +48,7 @@ DIAG_MODE ?= 0
 # - Sections per function plus --gc-sections, so unused driver code is dropped
 COMPILE = avr-g++ -Wall -Os -std=c++17 -mmcu=$(DEVICE) -DF_CPU=$(CLOCK) \
 	-fno-exceptions -fno-rtti -fno-threadsafe-statics \
-	-ffunction-sections -fdata-sections -flto -DDIAG_MODE=$(DIAG_MODE)
+	-ffunction-sections -fdata-sections -flto -DDIAG_MODE=$(DIAG_MODE) $(SPI_DIV_FLAG) $(EXTRA)
 
 LINK = $(COMPILE) -Wl,--gc-sections
 
@@ -61,15 +73,15 @@ $(FILENAME).hex: $(FILENAME).elf
 
 # Header dependencies, kept by hand since there are only a few of them.
 #
-# Everything also depends on the Makefile and on the recorded DIAG_MODE, so
-# that changing either actually rebuilds. Without the stamp file, switching
-# with "make DIAG_MODE=2" would change no file make can see, and it would
-# happily reflash the previous mode's binary.
+# Everything also depends on the Makefile and on the recorded DIAG_MODE and
+# LCD_SPI_DIV, so that changing any of them actually rebuilds. Without the
+# stamp file, switching with "make DIAG_MODE=2" would change no file make can
+# see, and it would happily reflash the previous mode's binary.
 $(OBJECTS): Makefile diagmode.stamp
 
 .PHONY: force
 diagmode.stamp: force
-	@echo "$(DIAG_MODE)" | cmp -s - $@ || echo "$(DIAG_MODE)" > $@
+	@echo "$(DIAG_MODE) $(LCD_SPI_DIV) $(EXTRA)" | cmp -s - $@ || echo "$(DIAG_MODE) $(LCD_SPI_DIV) $(EXTRA)" > $@
 kmmain.o: lcd.h font.h font5x7.h font8x16.h lcd_config.h pcf8574.h signals.h
 lcd.o: lcd.h font.h font5x7.h font8x16.h lcd_config.h
 font5x7.o: font.h font5x7.h

@@ -399,7 +399,53 @@ static void example() {
 
 }
 
+// Reset diagnostics, shown in the bottom-right corner while RESET_DIAG is set
+// (default on during bring-up; make EXTRA=-DRESET_DIAG=0 to hide it). RSTFR holds the cause of the last reset (PORF 01, BORF 02,
+// EXTRF 04, WDRF 08, SWRF 10, UPDIRF 20) until cleared, and bootCount lives in
+// .noinit so the C runtime does not zero it: it survives every reset except a
+// power-on one. A screen that keeps re-initialising is the MCU restarting, and
+// these two say how. A rising count with RSTFR empty is a crash that ran off
+// the end of flash and back to address 0, not a hardware reset.
+// Idle gap between frames. Overridable from the command line (make EXTRA=-DLOOP_DELAY_MS=1000)
+// for experiments; the default is what the real screen runs with.
+#ifndef LOOP_DELAY_MS
+	#define LOOP_DELAY_MS 100
+#endif
+#ifndef RESET_DIAG
+	#define RESET_DIAG 1
+#endif
+
+static uint8_t resetFlags;
+static uint8_t bootCount __attribute__((section(".noinit")));
+
+static void resetDiag() {
+	resetFlags = RSTCTRL.RSTFR;
+	RSTCTRL.RSTFR = resetFlags;			// write-1-to-clear, so each boot shows its own cause
+	if(resetFlags & RSTCTRL_PORF_bm)
+		bootCount = 0;
+	bootCount++;
+}
+
+// Bottom-right corner, small font: "Rxx Bnn Fnnn". The frame counter keeps
+// going only while the loop does: if the panel blanks and the count carries on
+// across it, the fault is on the panel side, not a restarting MCU.
+static uint16_t frameCount;
+
+__attribute__((unused)) static void showResetDiag() {
+	char buf[13];
+	buf[0] = 'R';
+	formatHex(buf + 1, resetFlags, 2);
+	buf[3] = ' ';
+	buf[4] = 'B';
+	formatHex(buf + 5, bootCount, 2);
+	buf[7] = ' ';
+	buf[8] = 'F';
+	formatHex(buf + 9, frameCount++, 3);
+	lcdDrawText(LCD_W - 12 * FONT_CELL_W, LCD_H - FONT_HEIGHT, buf, LCD_CYAN, LCD_BLACK);
+}
+
 int main() {
+	resetDiag();
 	clockInit();
 	lcdInit();
 
@@ -412,12 +458,23 @@ int main() {
 #elif DIAG_MODE == 1
 	diagLoop();
 #else
+#ifndef NO_I2C
 	pcfInit();
+#endif
 	lcdFill(LCD_BLACK);					// Clear screen
 	for(;;) {
+		// NO_I2C (make EXTRA=-DNO_I2C) leaves the expanders alone entirely, to
+		// separate anything the bus does from anything the drawing does.
+#ifndef NO_I2C
 		pcfStatus = signalsRead(&currentSignals);
+#else
+		(void) pcfStatus;
+#endif
 		example();
-		_delay_ms(100);
+#if RESET_DIAG
+		showResetDiag();
+#endif
+		_delay_ms(LOOP_DELAY_MS);
 	}
 	// textLoop();
 #endif

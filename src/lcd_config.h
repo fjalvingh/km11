@@ -128,7 +128,12 @@
 // problem, and if they do not change at all the fault is somewhere else
 // entirely. A full screen at 128 takes several seconds, which is fine for a
 // test and useless for anything else.
+//
+// Overridable from the command line without editing this file, so a long
+// ribbon cable can be tried at every speed: make LCD_SPI_DIV=128 upload
+#ifndef LCD_SPI_DIV
 #define LCD_SPI_DIV     16
+#endif
 
 // Debug aid. DC is normally low for exactly one byte time (6.4us at 1.25MHz),
 // which is far too short to spot on a scope that is not triggered on it. Set
@@ -136,5 +141,21 @@
 // makes the command phase plainly visible. Harmless to the protocol: the panel
 // only samples DC on the clock edges, and the clock is idle during the delay.
 #define LCD_STRETCH_DC  0
+
+// Change DC only while CS is high, so that a clock glitch coupled from the DC
+// edge into SCK on the ribbon falls on deaf ears. Costs a few hundred ns per
+// command. Try this when the first pixels after a command come out wrong.
+// make EXTRA=-DLCD_DC_UNDER_CS=1
+#ifndef LCD_DC_UNDER_CS
+#define LCD_DC_UNDER_CS 0
+#endif
+
+// Diagnostic: bit-bang everything open-drain, never driving a high, so the 5V
+// ATtiny cannot push current into the 3.3V panel's input clamps. Slow (about
+// 50kHz) and for testing only; see lcd.cpp. Normally set from the command line:
+// make EXTRA=-DLCD_OPEN_DRAIN=1
+#ifndef LCD_OPEN_DRAIN
+#define LCD_OPEN_DRAIN  0
+#endif
 
 #endif // LCD_CONFIG_H
