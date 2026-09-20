@@ -1,0 +1,4 @@
+(fp_lib_table
+	(version 7)
+	(lib (name "frits") (type "KiCad") (uri "/home/jal/hobby/kicad/libraries/frits.pretty") (options "") (descr ""))
+)
