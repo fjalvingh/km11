@@ -105,17 +105,16 @@ static void drawTestScreen() {
 // them can be identified on a slow scope or a multimeter without triggering on
 // anything. Probe at the *display end* of the ribbon, not at the MCU:
 //
-//   CS   (PA4, J2.10)  8 Hz
-//   MOSI (PA1, J2.4)   4 Hz
-//   SCK  (PA3, J2.8)   2 Hz
-//   DC   (PB2, J2.12)  1 Hz
-//   RST  (PB3, J2.14)  0.5 Hz
+//   CS   (PA4, J2.19, kmdisp J1.7)  8 Hz
+//   MOSI (PA1, J2.13, kmdisp J1.4)  4 Hz
+//   SCK  (PA3, J2.11, kmdisp J1.3)  2 Hz
+//   DC   (PB2, J2.17, kmdisp J1.6)  1 Hz
+//   RST  (PB3, J2.15, kmdisp J1.5)  0.5 Hz
 //
 // A line that does not move is a break between the pin and the panel. Check the
-// amplitude while you are there: the ATtiny runs at 5V and the panel at 3.3V,
-// with nothing in between on this board, so a swing that tops out near 3.9V
-// instead of 5V means the panel's protection diodes are clamping and the module
-// needs a level shifter.
+// amplitude while you are there: the lines leave the ATtiny at 5V and go
+// through U10 (74LVC245 on 3.3V), so a 3.3V swing at the display end is right
+// and a 5V one means the signal is bypassing U10.
 __attribute__((unused)) static void pinTestLoop() {
 	SPI0.CTRLA = 0;						// hand PA1/PA3 back to the port
 
@@ -138,9 +137,9 @@ __attribute__((unused)) static void pinTestLoop() {
 // proved the ATtiny is talking.
 //
 // The read is half duplex on SDA, since the module has no SDO pin. Watch PB5
-// (J2.18, spare) with the scope: each round is a 20ms high start marker, then
-// 40 bits at 1ms each, MSB first, high = 1, so the five bytes can be read
-// straight off the trace.
+// (U1 pin 6, spare, not on the ribbon) with the scope: each round is a 20ms
+// high start marker, then 40 bits at 1ms each, MSB first, high = 1, so the
+// five bytes can be read straight off the trace.
 //
 // Nothing is skipped for dummy clocks, so an answer may appear shifted a bit or
 // a byte into the stream. What matters is the shape:

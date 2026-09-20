@@ -8,8 +8,10 @@
 	)
 	(paper "C")
 	(title_block
-		(title "DEC FLIP CHIP Module : DOUBLE-HEIGHT, EXTENDED-LENGTH")
+		(title "KM11 mainboard")
+		(date "2026-09-20")
 		(rev "1")
+		(company "ErrorSoft")
 	)
 	(layers
 		(0 "F.Cu" signal)
@@ -13727,33 +13729,53 @@
 	)
 	(gr_line
 		(start 200.914 286.385)
-		(end 200.914 304.8)
+		(end 200.914 303.8)
 		(stroke
 			(width 0.127)
 			(type solid)
 		)
 		(layer "Edge.Cuts")
-		(uuid "00000000-0000-0000-0000-0000614e597d")
+		(uuid "77730bca-b120-4ba4-9507-8e59bb4bd595")
+	)
+	(gr_line
+		(start 200.914 303.8)
+		(end 201.914 304.8)
+		(stroke
+			(width 0.127)
+			(type solid)
+		)
+		(layer "Edge.Cuts")
+		(uuid "e11e00b3-61f0-4e06-8e4a-49728b17a511")
+	)
+	(gr_line
+		(start 256.81 304.8)
+		(end 201.914 304.8)
+		(stroke
+			(width 0.127)
+			(type solid)
+		)
+		(layer "Edge.Cuts")
+		(uuid "7c16eae1-309b-457b-847d-b573b1191e45")
 	)
 	(gr_line
 		(start 257.81 288.925)
-		(end 257.81 304.8)
+		(end 257.81 303.8)
 		(stroke
 			(width 0.127)
 			(type solid)
 		)
 		(layer "Edge.Cuts")
-		(uuid "00000000-0000-0000-0000-0000614e5936")
+		(uuid "3e770926-df03-4be4-a76a-275cacda8553")
 	)
 	(gr_line
-		(start 257.81 304.8)
-		(end 200.914 304.8)
+		(start 257.81 303.8)
+		(end 256.81 304.8)
 		(stroke
 			(width 0.127)
 			(type solid)
 		)
 		(layer "Edge.Cuts")
-		(uuid "00000000-0000-0000-0000-0000614e5966")
+		(uuid "598f10df-1090-4ea0-b31c-02661e3aeacb")
 	)
 	(gr_line
 		(start 267.208 288.925)
@@ -13787,33 +13809,53 @@
 	)
 	(gr_line
 		(start 270.764 286.385)
-		(end 270.764 304.8)
+		(end 270.764 303.8)
 		(stroke
 			(width 0.127)
 			(type solid)
 		)
 		(layer "Edge.Cuts")
-		(uuid "00000000-0000-0000-0000-0000614e5950")
+		(uuid "50bd8564-ce61-4a9c-86d1-bcacd7464a77")
+	)
+	(gr_line
+		(start 270.764 303.8)
+		(end 271.764 304.8)
+		(stroke
+			(width 0.127)
+			(type solid)
+		)
+		(layer "Edge.Cuts")
+		(uuid "ed2ed5da-8ccf-4c11-983f-e7e6ef6be669")
+	)
+	(gr_line
+		(start 326.66 304.8)
+		(end 271.764 304.8)
+		(stroke
+			(width 0.127)
+			(type solid)
+		)
+		(layer "Edge.Cuts")
+		(uuid "d6bc0b85-bd2a-4e72-a1e0-1faaebdb98c4")
 	)
 	(gr_line
 		(start 327.66 288.925)
-		(end 327.66 304.8)
+		(end 327.66 303.8)
 		(stroke
 			(width 0.127)
 			(type solid)
 		)
 		(layer "Edge.Cuts")
-		(uuid "fe759cff-d832-4275-a4ac-caf9569c34c6")
+		(uuid "d11a8b86-5a9c-4236-8349-9b27b9b4234e")
 	)
 	(gr_line
-		(start 327.66 304.8)
-		(end 270.764 304.8)
+		(start 327.66 303.8)
+		(end 326.66 304.8)
 		(stroke
 			(width 0.127)
 			(type solid)
 		)
 		(layer "Edge.Cuts")
-		(uuid "fe0a3f48-1501-4d1a-9029-148891f238d7")
+		(uuid "e34720df-4db9-42db-8822-d0fe9a9d95d9")
 	)
 	(gr_line
 		(start 330.2 224.79)

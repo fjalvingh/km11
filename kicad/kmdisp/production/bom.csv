@@ -1,0 +1,9 @@
+﻿Designator,Footprint,Quantity,Value,LCSC Part #
+C1,CP_Elec_4x3.9,1,47uF,
+J1,PinSocket_1x08_P2.54mm_Vertical,1,lcd_conn,
+J2,PinHeader_2x10_P2.54mm_Vertical,1,display_switches_hdr,
+R1,R_Axial_DIN0207_L6.3mm_D2.5mm_P7.62mm_Horizontal,1,24R,
+SW1,SW_Toggle_MTS102,1,SW_Step,
+SW2,SW_Toggle_MTS102,1,SW_SSYN,
+SW3,SW_Toggle_MTS102,1,SW_ClkEna,
+SW4,SW_Toggle_MTS102,1,SW_NoTimeout,

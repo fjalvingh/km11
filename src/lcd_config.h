@@ -1,20 +1,28 @@
 #ifndef LCD_CONFIG_H
 #define LCD_CONFIG_H
 
-// Hardware configuration for the KM11 display, taken from km1105.kicad_sch.
+// Hardware configuration for the KM11 display, taken from kicad/km1105 (the
+// card) and kicad/kmdisp (the display board at the far end of the ribbon).
 //
 // The ATtiny1616 talks to the panel over SPI0 on its default port A mux, so no
-// PORTMUX change is needed:
+// PORTMUX change is needed. Every display line leaves the ATtiny at 5V, goes
+// through U10 (74LVC245 on the 3.3V rail) and reaches the ribbon header J2 at
+// 3.3V; the display board's J2 has the same pinout and passes it straight to
+// the module socket J1:
 //
-//   PA1  MOSI  -> J2.4
-//   PA2  MISO  -> J2.6   (unused by the display, it is write-only)
-//   PA3  SCK   -> J2.8
-//   PA4  SS    -> J2.10  used as CS under software control (SPI0 SSD is set)
-//   PB2  DC    -> J2.12  command / data select
-//   PB3  RST   -> J2.14  panel reset, active low
+//   PA1  MOSI  -> U10 A2/B2 -> J2.13 -> kmdisp J1.4 (SDA)
+//   PA2  MISO                            (unused by the display, it is write-only;
+//                                         not on the ribbon)
+//   PA3  SCK   -> U10 A1/B1 -> J2.11 -> kmdisp J1.3 (SCL)
+//   PA4  SS    -> U10 A5/B5 -> J2.19 -> kmdisp J1.7 (CS), software controlled
+//                                         (SPI0 SSD is set)
+//   PB2  DC    -> U10 A4/B4 -> J2.17 -> kmdisp J1.6
+//   PB3  RST   -> U10 A3/B3 -> J2.15 -> kmdisp J1.5, active low
 //
-// The backlight is tied to a fixed voltage on the display module, so there is
-// no pin for it here. PB4 (J2.16) and PB5 (J2.18) are spare.
+// Every even J2 pin from 10 to 20 is GND, so each signal has a return next to
+// it in the ribbon. The backlight is fed on the display board (J1.8 via R1 from
+// +3.3V), so there is no pin for it here. PB4 and PB5 are spare and do not go
+// to the ribbon; probe them at the chip.
 
 #define LCD_SPI_PORT    PORTA
 #define LCD_MOSI_bm     PIN1_bm
@@ -28,8 +36,10 @@
 // ---------------------------------------------------------------- the panel
 //
 // Two panels are described below; LCD_CONTROLLER picks one and everything else
-// follows from it. The ST7735 is the 1.8" bring-up display, the ST7789P3 is the
-// one the KM11 board is actually designed around.
+// follows from it. The ST7735 is the 1.8" 128x160 board the KM11 uses - the
+// display board and the 3d/ console are made for it. The ST7789P3 entry is a
+// 2.25" 76x284 panel that was tried early on and never produced an image; it
+// is kept for reference only.
 
 #define LCD_ST7789      0
 #define LCD_ST7735      1
@@ -101,9 +111,9 @@
 
 #endif
 
-// 0 and 2 are portrait, 1 and 3 are landscape. Landscape on the ST7789P3 panel
-// gives 47 columns x 9 lines of 5x7 text, which is what the KM11 signal display
-// needs; on the 80x160 ST7735 it gives 26 columns x 10 lines.
+// 0 and 2 are portrait, 1 and 3 are landscape. Landscape on the 128x160 ST7735
+// gives 26 columns x 16 lines of 5x7 text; on the 80x160 ST7735 26 columns x 10
+// lines, and on the ST7789P3 panel 47 columns x 9 lines.
 #define LCD_ROTATION    1
 
 // Send the full init sequence (porch/frame rate, gate, VCOM, power and gamma)

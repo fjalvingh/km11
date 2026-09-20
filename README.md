@@ -5,8 +5,9 @@ be placed in both KM11 slots of a PDP 11/05 or 11/10. It uses an ATTINY1616 (or 
 if I cannot make the code fit) and a set of i2c I/O adapters (PCF8574T) to read the data
 from both slots for the KM11, and writes those to an LCD screen, offset on a cable.
 
-The main PCB must be placed in the PDP 11/05. The LCD display and the switches 
-are connected to a ribbon cable to move outside the pdp/11.
+The main PCB must be placed in the PDP 11/05. The LCD display and the switches sit on
+a second, small PCB (`kicad/kmdisp`) at the end of a 20-way ribbon cable, so they can be
+outside the pdp/11 in the 3D-printed console from `3d/`.
 
 ## Hardware
 
