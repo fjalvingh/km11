@@ -1,6 +1,6 @@
 # Define variables that may change between projects
 FILENAME = kmmain
-PORT = /dev/ttyUSB1
+PORT = /dev/ttyUSB2
 DEVICE = attiny1616
 PROGRAMMER = serialupdi
 

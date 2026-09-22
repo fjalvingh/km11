@@ -110,7 +110,7 @@ Other command-line knobs, all rebuild automatically via `diagmode.stamp`:
   U10 has since removed.
 - `make EXTRA=-DLCD_DC_UNDER_CS=1 upload` — move the DC edges to moments when CS is high, so a glitch
   coupled from DC into SCK cannot count as a clock. For "first pixels after each command are wrong".
-- `RESET_DIAG` (default 1) prints `Rxx Bnn Fnnn` bottom-right in mode 0: last reset cause from
+- `make EXTRA=-DRESET_DIAG=1 upload` (default 0) prints `Rxx Bnn Fnnn` bottom-right in mode 0: last reset cause from
   `RSTCTRL.RSTFR`, a `.noinit` boot counter, and a frame counter. `R21 B01` with `F` counting is a
   healthy MCU; a rising `B` means it is restarting, `F` frozen means it is hung.
 

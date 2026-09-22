@@ -399,7 +399,7 @@ static void example() {
 }
 
 // Reset diagnostics, shown in the bottom-right corner while RESET_DIAG is set
-// (default on during bring-up; make EXTRA=-DRESET_DIAG=0 to hide it). RSTFR holds the cause of the last reset (PORF 01, BORF 02,
+// (default off; make EXTRA=-DRESET_DIAG=1 to show it). RSTFR holds the cause of the last reset (PORF 01, BORF 02,
 // EXTRF 04, WDRF 08, SWRF 10, UPDIRF 20) until cleared, and bootCount lives in
 // .noinit so the C runtime does not zero it: it survives every reset except a
 // power-on one. A screen that keeps re-initialising is the MCU restarting, and
@@ -411,7 +411,7 @@ static void example() {
 	#define LOOP_DELAY_MS 100
 #endif
 #ifndef RESET_DIAG
-	#define RESET_DIAG 1
+	#define RESET_DIAG 0
 #endif
 
 static uint8_t resetFlags;
