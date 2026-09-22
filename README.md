@@ -19,13 +19,15 @@ The board uses:
 
 A PCB has been requested for the first version, let's hope it works :smile:
 
-## Schematic and PCB views
+## Schematic and PCB views, version 1
 
 ![schematic](schematic.png)
 
 ![pcb layout](pcblayout.png)
 
 ![3d view](3dview.png)
+
+This version had some issues, so a respin is being done.
 
 ## Code
 
@@ -59,4 +61,12 @@ I made a small test setup to test driving the display:
 
 The initial idea was to use a fancy 2.25 landscape mode LCD to show the info, but after almost 4 hours
 of testing and messing around with the code I gave up, I assume the display I got was defective. I was not helped by the fact that the second display tested, now the 1.8" display, was ALSO found to be defective, wasting another few hours. In the end I proved that of the 5 1.8" displays I have 1 was defective, and I had to pick that one for the test, obviously. Murphy in full working order.
+
+## The first version in an actual PDP 11/10 (same as 11/05)
+
+![The V1 version in a PDP 11/10. This does not yet have its housing.](v1-in-11-1.png)
+
+More closeup:
+
+![The display. On the side you can see the M7261 board on an extender](v1-in-11-2.png)
 
