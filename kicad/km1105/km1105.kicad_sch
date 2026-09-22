@@ -7957,7 +7957,7 @@
 		)
 		(uuid "82170ca5-54e7-4c1c-970f-3471aea60bfb")
 	)
-	(text "km2: c2*"
+	(text "km2: c0*"
 		(exclude_from_sim no)
 		(at 155.956 105.918 0)
 		(effects

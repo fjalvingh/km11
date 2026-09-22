@@ -15,7 +15,7 @@ struct KmSignals {
 	uint8_t		mpc;			// MPC* 0..7,   U2 P0..P7, inverted
 	uint16_t	amux;			// AMUX 0..15,  U3 then U4
 	uint8_t		spad;			// SPAD 0..3,   U5 P0..P3
-	uint8_t		aluS;			// ALU_S 0..3,  U5 P4..P7
+	uint8_t		aluS;			// ALU_S* 0..3, U5 P4..P7, inverted
 	uint16_t	flags;			// the single bit signals, SIG_* below
 };
 
@@ -33,7 +33,9 @@ struct KmSignals {
 #define SIG_BUT_UN	0x0200		// U7 P1, BUT_UN*
 #define SIG_BUT_JJ	0x0400		// U7 P2, BUT_JJ*
 #define SIG_AUX_C	0x0800		// U7 P3, AUX_C*
-#define SIG_C2		0x1000		// U7 P4, C2*
+// C1 and C0 are the Unibus cycle type: 00 DATI, 01 DATIP, 10 DATO, 11 DATOB
+// (KD11-B manual, table 5-4). DEC calls the low one C0, not C2.
+#define SIG_C0		0x1000		// U7 P4, C0*
 #define SIG_C1		0x2000		// U7 P5, C1*
 
 // Turns six raw expander bytes into a KmSignals. Split out from the read so it

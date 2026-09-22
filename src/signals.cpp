@@ -7,10 +7,11 @@
 //   U2  MPC* is inverted end to end
 //   U3  AMUX 0..7, straight
 //   U4  AMUX 8..15, straight
-//   U5  SPAD and ALU_S, straight
+//   U5  P0..P3 SPAD straight, P4..P7 ALU_S* inverted (DEC's KM-2 overlay
+//       marks S3..S0 "dim when asserted", the same as MPC)
 //   U6  P0..P3 (MSYN* SSYN* BBSY* BUT_IR*) inverted, P4..P7 straight
 //   U7  P0..P5 all inverted, P6 and P7 unconnected and masked off elsewhere
-static const uint8_t invertMask[PCF_COUNT] = { 0xff, 0x00, 0x00, 0x00, 0x0f, 0x3f };
+static const uint8_t invertMask[PCF_COUNT] = { 0xff, 0x00, 0x00, 0xf0, 0x0f, 0x3f };
 
 void signalsDecode(const uint8_t raw[PCF_COUNT], KmSignals *out) {
 	uint8_t v[PCF_COUNT];

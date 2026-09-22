@@ -6,9 +6,9 @@ PROGRAMMER = serialupdi
 
 # Clock speed must be provided for delays to be timed properly.
 # This is the speed AFTER the prescaler that clockInit() sets, not the
-# oscillator: the 20MHz oscillator is divided by two because the ATtiny1616 is
-# only rated for 20MHz at 4.5V and up, and this board runs at 3.3V, where
-# 10MHz is the limit.
+# oscillator: the 20MHz oscillator is divided by two. U1 runs on +5V, so 20MHz
+# would be in spec, but nothing here needs it and the SPI and I2C dividers are
+# tuned to 10.
 CLOCK = 10000000
 
 # Baud rate for programming

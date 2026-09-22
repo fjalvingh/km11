@@ -49,6 +49,18 @@ their actual value is visible.
 
 The single signals are shown in yellow when asserted, and in red when negated.
 
+MPC and AMUX are shown in octal, the way DEC writes them in the microprogram flow charts and on
+the console. Two things from the KD11-B manual (EK-KD11B-MM-001, section 5.9) worth knowing when
+reading the screen: the MPC is the address of the *next* microstep, not the one being executed,
+and C1/C0 together give the Unibus cycle type (00 DATI, 01 DATIP, 10 DATO, 11 DATOB).
+
+The four switches are BUS SSYN, AC LO, M CLK PULSE (STEP) and M CLK ENABLE. The AC LO one sits
+on the KM11 pin the 11/20 used for NO TIMEOUT, and the net is still called `TIMEOUT_H` for that
+reason; on the 11/05 throwing it asserts BUS AC LO and starts the power-fail sequence.
+
+`review.md` records the September 2026 check of the design and firmware against DEC's own
+documentation, with the sources.
+
 ## Programming
 
 To program the ATTINY1616 please follow the setup and instructions from [my 8bit bus display tool](https://github.com/fjalvingh/8bit-busdisplay).

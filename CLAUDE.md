@@ -39,6 +39,10 @@ holes of its own.
 - `km11-signals.txt` — **the authoritative signal map**. Maps each front-panel LED (D1..D28) to its
   signal name and to the corresponding pin function in KM slot 1 and slot 2. Any question of the form
   "what does this net connect to on the backplane" is answered here first.
+- `review.md` — the September 2026 check of both boards and the firmware against DEC's KD11-B
+  manual, the 11/05 print set and the KM11 W130/W131 prints, with the bitsavers URLs. Verified the
+  pin map end to end; records the polarity and naming corrections (ALU_S active low, C0 not C2,
+  AC LO not NO TIMEOUT).
 
 ## Firmware (`src/`)
 
@@ -130,7 +134,8 @@ ladder above only after a known-good panel has failed on the same wiring.
   and SSYN switch latches), `U9` LD1117 3V3 LDO, `U10` 74LVC245 level shifter, `J1` DEC double edge
   connector, `J2` display/switch ribbon header (2x10), `J3` UPDI programming header, `J5` logic
   analyser header.
-- The ribbon `J2` (same numbering on both boards): 1 +5V, 2/4 +3.3V, 3 `TIMEOUT_H`, 5
+- The ribbon `J2` (same numbering on both boards): 1 +5V, 2/4 +3.3V, 3 `TIMEOUT_H` (the W131's
+  name for KM11 pin B2; on the 11/05 that pin is BUS AC LO, and the switch is labelled AC LO), 5
   `M_CLK_ENABLE_L`, 6/8 `s4_off`/`s4_on` (STEP), 7/9 `s3_off`/`s3_on` (SSYN), 11 SCK, 13 MOSI, 15 RST,
   17 DC, 19 CS, every even pin from 10 to 20 GND. On the display board the SPDT switches ground one of
   the two latch inputs, the other two switches ground their line directly, and the LCD socket `J1` is

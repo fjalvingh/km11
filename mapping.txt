@@ -3,7 +3,7 @@ AMUX 0..7: U3 P0..P7
 AMUX 8..15: U4 P0..P7
 
 SPAD 0..3: U5 P0..P3
-ALU_S 0..3: U5 P4..P7
+ALU_S* 0..3: U5 P4..P7
 
 MSYN*: U6 P0
 SSYN*: U6 P1
@@ -20,6 +20,6 @@ BUT_UN*: U7 P1
 BUT_JJ*: U7 P2
 AUX_C*: U7 P3
 
-C2*: U7 P4
+C0*: U7 P4
 C1*: U7 P5
 

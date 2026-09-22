@@ -147,7 +147,7 @@
 				)
 			)
 		)
-		(property "Value" "SW_NoTimeout"
+		(property "Value" "SW_AcLo"
 			(at 0 -6.35 90)
 			(layer "F.Fab")
 			(uuid "4585358b-a97f-4708-9824-c48f0941d32e")
@@ -3415,7 +3415,7 @@
 			(justify left bottom)
 		)
 	)
-	(gr_text "No Timeout"
+	(gr_text "AC LO"
 		(at 110.74 104.79 90)
 		(layer "F.SilkS")
 		(uuid "6574c6da-936b-488b-b27e-ef82bdf79f83")

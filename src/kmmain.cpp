@@ -11,12 +11,11 @@
 // a divide-by-6 prescaler after reset, so the prescaler has to be set here for
 // F_CPU (and with it _delay_ms and the SPI clock) to mean anything.
 //
-// It is set to divide by two, NOT switched off: the speed grade of this part is
-// 20MHz only from 4.5V up. At the 3.3V this board runs on, 10MHz is the
-// ceiling, and 20MHz would be out of spec with no promise that anything works.
-// Dividing the 20MHz oscillator by two lands exactly on that ceiling. If fuse2
-// is left at the 16MHz default this gives 8MHz instead, which is also fine -
-// only the timings scale.
+// It is set to divide by two, NOT switched off. U1 runs on +5V, so the part
+// would be in spec at 20MHz, but nothing here needs it: 10MHz is plenty, the
+// SPI and I2C dividers are tuned to it, and it keeps the edges on the ribbon
+// gentler. If fuse2 is left at the 16MHz default this gives 8MHz instead,
+// which is also fine - only the timings scale.
 static void clockInit() {
 	_PROTECTED_WRITE(CLKCTRL.MCLKCTRLB, CLKCTRL_PDIV_2X_gc | CLKCTRL_PEN_bm);
 }
@@ -67,10 +66,15 @@ static void formatHex(char *buf, uint16_t value, uint8_t width) {
 	}
 }
 
-static void formatHex0x(char* buf, uint16_t value, uint16_t width) {
-	*buf++  = '0';
-	*buf++ = 'x';
-	formatHex(buf, value, width);
+// Zero padded octal, which is what everything PDP-11 is written in: the MPC
+// addresses in the microprogram flow charts are octal, and so are the console
+// lights the AMUX value gets compared with.
+static void formatOctal(char *buf, uint16_t value, uint8_t width) {
+	buf[width] = '\0';
+	for(uint8_t i = width; i-- > 0;) {
+		buf[i] = (char) ('0' + (value & 7));
+		value >>= 3;
+	}
 }
 
 // Paints a test pattern: a title, some coloured signal-ish text, and the whole
@@ -335,14 +339,20 @@ static void example() {
 
 	//-- 1st 2 lines: large text
 	const Font& font = FontLarge;
+	// The MPC is 8 bits, three octal digits: 000..377. Two decimal digits, as
+	// this once was, silently dropped the hundreds digit. Note that what the
+	// KM11 shows is the address of the NEXT microstep, not the current one
+	// (KD11-B manual, 5.9 e).
+	// 3+1+3+1+4+1+6 = 19 cells of 8 pixels, inside the 160 of the landscape
+	// screen.
 	x = lcdDrawText_P(x, y, PSTR("MPC"), LCD_WHITE, currentBg, &font);
 	space(x, &font);
-	formatNumber(buf, getMPC(), 2);
+	formatOctal(buf, getMPC(), 3);
 	x = lcdDrawText(x, y, buf, LCD_GREEN, currentBg, &font);
 
 	space(x, &font);
-	x = lcdDrawText_P(x, y, PSTR("AMUX "), LCD_WHITE, currentBg, &font);
-	formatHex0x(buf, getAMUX(), 4);
+	x = lcdDrawText_P(x, y, PSTR("AMUX"), LCD_WHITE, currentBg, &font);
+	formatOctal(buf, getAMUX(), 6);
 	space(x, &font);
 	x = lcdDrawText(x, y, buf, LCD_GREEN, currentBg, &font);
 
@@ -381,7 +391,7 @@ static void example() {
 	flagDisp(PSTR("MSYN"), flags & SIG_MSYN, &font);
 	flagDisp(PSTR("SSYN"), flags & SIG_SSYN, &font);
 	flagDisp(PSTR("C1"), flags & SIG_C1, &font);
-	flagDisp(PSTR("C2"), flags & SIG_C2, &font);
+	flagDisp(PSTR("C0"), flags & SIG_C0, &font);
 
 	//-- Last two
 	// currentFlagY += font.height + 1;
