@@ -81,4 +81,5 @@ of testing and messing around with the code I gave up, I assume the display I go
 More closeup:
 
 ![The display. On the side you can see the M7261 board on an extender](v1-in-11-2.png)
+The microcode PC is at 302~oct~, which is H-2, part of the HALT instruction, as can be seen from [the microcode browser for the PDP 11/05 rev E](https://tools.etc.to/)
 
