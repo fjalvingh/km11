@@ -8,34 +8,40 @@ horizontal, back edge raised, and is held there by a pedestal that mounts to
 the rear strip of the underside. The pedestal reaches forward into a foot so
 the thing cannot tip.
 
-The display is mounted landscape: the module's long axis runs across the panel.
-Its glass stands 2.25 mm proud of its PCB, so the glass drops into the window
-from behind and the PCB lies flat against the panel's inner face. Nothing
-overlaps the glass, so no bezel dimension has to be guessed - the window is cut
-to the measured glass outline and the picture sits wherever it sits inside it.
-Four posts on the lid hold the module against the panel.
+The switches and the display sit on the display board (kicad/kmdisp): the
+toggles are soldered to it and screwed through the panel, the LCD module plugs
+into its socket J1. The board hangs off the panel by its switches and touches
+nothing else. The display is landscape, its glass dropping into the window
+from behind; the window is cut to the measured glass outline. Switch and window
+positions are fixed by that board - do not move them.
+
+The ribbon plugs into the board's J2 from the panel side, so the IDC plug's
+back, where the cable leaves, is just under the panel. The cable runs out
+sideways through a notch at the top of the right-hand (+x) wall, which the
+panel closes. The box is wider on that side than on the other to make room for
+the board edge and the cable.
 
 Three printed parts, each with a print orientation that needs no supports:
 
-  SHELL     box body: top panel plus four walls, open underneath. Carries the
-            display window, the four switch holes and the cable slot.
-            Printed panel-face-down - flat panel on the bed, walls vertical.
-  LID       flat plate closing the underside. Carries the four posts that clamp
-            the display. Prints flat, posts upward.
-  PEDESTAL  the stand. Mates against the lid's outer face over the rear strip.
+  PANEL     flat top plate. Carries the display window, the four switch holes
+            and four countersunk screw holes. Printed face-down.
+  BASE      floor plus four walls, open on top, with a screw stud in each corner
+            and the cable notch in the right wall. Printed floor-down.
+  PEDESTAL  the stand. Mates against the base's floor over the rear strip.
             Printed base-down.
 
-Coordinates: SHELL and LID are modelled in the BOX frame - x across the panel,
+Coordinates: PANEL and BASE are modelled in the BOX frame - x across the panel,
 y from the front edge back, z down into the box from the panel face (z=0). The
 pedestal body is modelled in world YZ; its cut features are modelled in the box
 frame and mapped across with place().
 
 Assembly order:
-  1. drop the display into the window from inside, glass through the opening
-  2. fit the four toggles, wire up, feed the ribbon out through the rear slot
-  3. offer the pedestal up to the lid and drive four M3 from the lid's inner face
-  4. drop the lid onto the shell and drive the four corner screws - those sit
-     outside the pedestal's width and stay reachable
+  1. offer the base up to the pedestal and drive four countersunk M3 from inside
+     the base - their heads end flush with the floor, under the display board
+  2. fit the display board to the panel: toggles through their holes, nuts on
+     the outside, LCD glass in the window. Plug in the ribbon.
+  3. lay the ribbon in the notch, drop the panel onto the base and drive the
+     four countersunk corner screws into the studs
 """
 
 import math
@@ -48,17 +54,16 @@ import cadquery as cq
 # Attitude
 tilt_deg = 30.0        # deg - tilt of the whole box off horizontal, back edge up
 
-# Box
-box_w = 114.0          # mm - panel width (across, display left / switches right)
+# Box. The left edge is where it always was; the right edge follows the display
+# board, see box_x1 below.
+box_x0 = -57.0         # mm - left (-x) outer edge
 box_l = 56.0           # mm - panel depth (front edge to back edge)
 box_t = 26.0           # mm - box thickness, panel face to underside
 wall = 2.4             # mm - side wall thickness
 panel_t = 3.2          # mm - top panel thickness (MTS-102 takes up to ~4mm)
-lid_t = 4.0            # mm - underside lid thickness
-lip_h = 1.5            # mm - locating lip on the lid
-lip_clearance = 0.3    # mm - per-side clearance on that lip
+floor_t = 4.0          # mm - base floor thickness
 corner_r = 3.0         # mm - rounding on the box's four upright corners
-edge_cham = 0.8        # mm - chamfer around the panel face and the lid's outer face
+edge_cham = 0.8        # mm - chamfer around the panel face and the base's outer face
 
 # Display: 1.8" 128x160 SPI TFT, ST7735S, mounted landscape.
 disp_pcb_w = 55.9      # mm - PCB, across the panel
@@ -75,14 +80,6 @@ disp_glass_off = -(disp_pcb_w / 2 - 3.8 - disp_glass_w / 2)   # mm -> -2.30
 disp_cx = -22.5        # mm - PCB centre, x
 disp_cy = 28.0         # mm - PCB centre, y
 win_clr = 0.3          # mm - clearance around the glass in the window, per side
-disp_post_d = 4.0      # mm - clamping post diameter
-disp_post_gap = 0.4    # mm - gap left under the posts, take up with a foam pad
-# Clamp posts sit this far in from the PCB's edges, so they push against the
-# strips of panel the PCB actually rests on rather than bowing it into the
-# window. The +x pair lands on the header strip, clear of a centred 8-pin row;
-# check the back of your module and move them if one hits a component.
-disp_post_inset_x = 2.5   # mm
-disp_post_inset_y = 3.5   # mm
 
 # Switches: MTS-102, M6x0.75 bushing, 13 x 8 x 10 mm body behind the panel
 sw_hole_d = 6.4        # mm - panel hole
@@ -90,31 +87,43 @@ sw_pitch = 16.0        # mm - 2 x 2 grid pitch, both axes
 sw_cx = 33.5           # mm - cluster centre, x
 sw_cy = 28.0           # mm - cluster centre, y
 
-# Fasteners - M3 throughout
+# Display board (kicad/kmdisp/kmdisp.kicad_pcb), in KiCad coordinates, tied to
+# the box by the switch cluster. The board faces the panel with its component
+# side, so KiCad x maps straight onto box x and KiCad y (downward on screen)
+# runs toward the front edge.
+kc_sw = (108.0, 108.0)             # centre of SW1..SW4
+kc_board = (72.11, 90.01, 131.49, 125.76)   # Edge.Cuts rectangle x0, y0, x1, y1
+kc_j2 = (126.035, 96.065)          # J2 pin 1; 2x10, rows +x, pins run +y
+board_x0 = kc_board[0] - kc_sw[0] + sw_cx
+board_x1 = kc_board[2] - kc_sw[0] + sw_cx
+board_y0 = sw_cy - (kc_board[3] - kc_sw[1])
+board_y1 = sw_cy - (kc_board[1] - kc_sw[1])
+j2_x = kc_j2[0] + 1.27 - kc_sw[0] + sw_cx
+j2_y = sw_cy - (kc_j2[1] + 4.5 * 2.54 - kc_sw[1])
+board_clr = 2.0        # mm - board edge to the inside of the right wall
+
+# Fasteners - M3 countersunk (90 degree) throughout
 screw_d = 3.4          # mm - M3 clearance
-screw_cb_d = 6.2       # mm - counterbore for an M3 socket head
-screw_cb_h = 2.5       # mm - counterbore depth
-boss_d = 6.5           # mm - screw boss outside diameter
-boss_clr = 0.5         # mm - diametral clearance where the shell's boss passes through the lid's lip
+csk_d = 6.4            # mm - countersink diameter at the surface, M3 head is 6.0
+boss_d = 6.5           # mm - screw stud outside diameter
 pilot_d = 2.6          # mm - M3 self-tapping pilot
-lid_screw_x = 51.6     # mm - shell screw positions, +/- x (boss overlaps the side wall)
-lid_screw_y = (6.0, 50.0)      # mm - shell screw positions, y
-ped_screw_x = 30.0     # mm - pedestal screw positions, +/- x
+stud_inset_x = 5.4     # mm - panel screw centres in from the left/right outer edges
+stud_y = (5.5, 50.5)   # mm - panel screw positions, y; clear of the board's front/back edges
+ped_screw_x = 30.0     # mm - pedestal screw positions, +/- x from the box centre
 ped_screw_y = (42.0, 50.0)     # mm - pedestal screw positions, y
 ped_pilot_depth = 8.0  # mm - how far the pilot goes into the pedestal
 
-# Cable: 20-way 1.27mm ribbon is 25.4 mm wide. The slot is centred on the
-# display, not the box, so the ribbon runs straight back off the module and
-# clears the +x pair of clamp posts.
-cable_w = 25.0         # mm - slot width
-cable_h = 2.5          # mm - slot height
-cable_x = disp_cx      # mm - slot centre, x
-cable_z = -15.0        # mm - slot centre, box-frame z
+# Cable: 20-way 1.27 mm ribbon, 25.4 mm wide, leaving the IDC plug on J2
+# sideways toward +x. It goes through a notch in the top of the right wall,
+# centred on J2, and the panel closes the notch over it.
+cable_w = 27.0         # mm - notch width
+cable_h = 3.0          # mm - notch depth below the panel's underside
+cable_y = j2_y         # mm - notch centre, y
 
 # Pedestal
 ped_w = 86.0           # mm - pedestal width (narrower than the box)
 ped_band = 24.0        # mm - length of underside it grips, measured from the back
-ped_front_ang = 50.0   # deg - front face of the pedestal, measured off the lid plane
+ped_front_ang = 50.0   # deg - front face of the pedestal, measured off the floor plane
 ped_wall = 6.0         # mm - pedestal shell thickness (hollow, open underneath)
 ped_edge_r = 1.5       # mm - rounding along the pedestal's profile edges
 foot_t = 4.0           # mm - thickness of the foot plate
@@ -130,8 +139,10 @@ eps = 0.01
 c = math.cos(math.radians(tilt_deg))
 s = math.sin(math.radians(tilt_deg))
 
-shell_d = box_t - lid_t                      # how deep the shell reaches below the panel
-cavity_d = shell_d - panel_t                 # usable depth behind the panel
+box_x1 = board_x1 + board_clr + wall        # right (+x) outer edge
+box_w = box_x1 - box_x0
+box_xc = (box_x0 + box_x1) / 2.0
+cavity_d = box_t - panel_t - floor_t         # usable depth behind the panel
 lift = box_t * c + foot_t + ground_gap       # so the foot slides under the box's low corner
 
 
@@ -147,13 +158,10 @@ def place(part):
 
 BB = to_world(box_l, -box_t)     # back-bottom
 
-lid_dir = (c, s)                 # along the underside, front -> back
+under_dir = (c, s)               # along the underside, front -> back
 
-lid_screw_pts = [(sx * lid_screw_x, y) for sx in (-1, 1) for y in lid_screw_y]
-ped_screw_pts = [(sx * ped_screw_x, y) for sx in (-1, 1) for y in ped_screw_y]
-disp_post_pts = [(disp_cx + sx * (disp_pcb_w / 2 - disp_post_inset_x),
-                  disp_cy + sy * (disp_pcb_l / 2 - disp_post_inset_y))
-                 for sx in (-1, 1) for sy in (-1, 1)]
+stud_pts = [(x, y) for x in (box_x0 + stud_inset_x, box_x1 - stud_inset_x) for y in stud_y]
+ped_screw_pts = [(box_xc + sx * ped_screw_x, y) for sx in (-1, 1) for y in ped_screw_y]
 sw_pts = [(sw_cx + sx * sw_pitch / 2.0, sw_cy + sy * sw_pitch / 2.0)
           for sx in (-1, 1) for sy in (-1, 1)]
 
@@ -179,64 +187,61 @@ def posts(points, diameter, z0, z1):
             .extrude(z1 - z0))
 
 
-# ============================================================
-# SHELL
-# ============================================================
-shell = blk(-box_w / 2, box_w / 2, 0, box_l, -shell_d, 0, corner_r)
-shell = shell.faces(">Z").edges().chamfer(edge_cham)
-shell = shell.cut(blk(-box_w / 2 + wall, box_w / 2 - wall, wall, box_l - wall,
-                      -shell_d, -panel_t, corner_r - wall + 0.6))
+def csk(points, z_face, down):
+    """90 degree countersinks at the given (x, y) points, opening at z_face and
+    narrowing into the part - downward (-z) if `down`, else upward."""
+    h = (csk_d - screw_d) / 2.0
+    d = -1 if down else 1
+    cones = [cq.Solid.makeCone(csk_d / 2.0 + eps, screw_d / 2.0, h + eps,
+                               cq.Vector(x, y, z_face - d * eps), cq.Vector(0, 0, d))
+             for x, y in points]
+    return cq.Workplane("XY").newObject(cones).combine()
 
-# screw bosses for the lid, merged into the side walls
-shell = shell.union(posts(lid_screw_pts, boss_d, -shell_d, -panel_t))
 
-# display window - the glass drops into it from behind, the PCB lies flat
-# against the panel's inner face on either side of it
-shell = shell.cut(blk(win_cx - win_w / 2, win_cx + win_w / 2,
+# ============================================================
+# PANEL
+# ============================================================
+panel = blk(box_x0, box_x1, 0, box_l, -panel_t, 0, corner_r)
+panel = panel.faces(">Z").edges().chamfer(edge_cham)
+
+# display window - the glass drops into it from behind
+panel = panel.cut(blk(win_cx - win_w / 2, win_cx + win_w / 2,
                       disp_cy - win_l / 2, disp_cy + win_l / 2,
                       -panel_t - eps, eps))
 
 # switches
-shell = shell.cut(posts(sw_pts, sw_hole_d, -panel_t - eps, eps))
+panel = panel.cut(posts(sw_pts, sw_hole_d, -panel_t - eps, eps))
 
-# lid screw pilots, drilled up from the open underside
-shell = shell.cut(posts(lid_screw_pts, pilot_d, -shell_d - eps, -panel_t + 2.0))
-
-# cable slot through the back wall
-shell = shell.cut(blk(cable_x - cable_w / 2, cable_x + cable_w / 2, box_l - wall - eps, box_l + eps,
-                      cable_z - cable_h / 2, cable_z + cable_h / 2))
+# countersunk screws into the base's studs
+panel = panel.cut(posts(stud_pts, screw_d, -panel_t - eps, eps))
+panel = panel.cut(csk(stud_pts, 0, down=True))
 
 # ============================================================
-# LID
+# BASE
 # ============================================================
-lid = blk(-box_w / 2, box_w / 2, 0, box_l, -box_t, -shell_d, corner_r)
-lid = lid.faces("<Z").edges().chamfer(edge_cham)
-lid = lid.union(blk(-box_w / 2 + wall + lip_clearance, box_w / 2 - wall - lip_clearance,
-                    wall + lip_clearance, box_l - wall - lip_clearance,
-                    -shell_d, -shell_d + lip_h, 1.0))
+base = blk(box_x0, box_x1, 0, box_l, -box_t, -panel_t, corner_r)
+base = base.faces("<Z").edges().chamfer(edge_cham)
+base = base.cut(blk(box_x0 + wall, box_x1 - wall, wall, box_l - wall,
+                    -box_t + floor_t, -panel_t + eps, corner_r - wall + 0.6))
 
-# posts that clamp the display against the panel
-disp_post_top = -(panel_t + disp_pcb_t) - disp_post_gap
-lid = lid.union(posts(disp_post_pts, disp_post_d, -shell_d, disp_post_top))
+# screw studs, merged into the corners, with pilots from the top
+base = base.union(posts(stud_pts, boss_d, -box_t + floor_t - eps, -panel_t))
+base = base.cut(posts(stud_pts, pilot_d, -box_t + floor_t, -panel_t + eps))
 
-# clearance for the screws that pull the pedestal on, driven from inside the box.
-# The hole has to clear the lip as well as the plate, or it dead-ends at the
-# lip's underside instead of reaching the inner face.
-lid = lid.cut(posts(ped_screw_pts, screw_d, -box_t - eps, -shell_d + lip_h + eps))
+# countersunk clearance for the screws that pull the pedestal on, driven from
+# inside; the heads end flush with the floor, under the display board
+base = base.cut(posts(ped_screw_pts, screw_d, -box_t - eps, -box_t + floor_t + eps))
+base = base.cut(csk(ped_screw_pts, -box_t + floor_t, down=True))
 
-# counterbored clearance holes for the shell screws - same full-depth hole
-# through plate and lip, plus a wider pocket through the lip alone: the
-# shell's screw bosses land in this exact footprint and are wider than the
-# screw, so the lip needs to be relieved around the hole or the boss collides
-# with it on assembly.
-lid = lid.cut(posts(lid_screw_pts, screw_d, -box_t - eps, -shell_d + lip_h + eps))
-lid = lid.cut(posts(lid_screw_pts, boss_d + boss_clr, -shell_d - eps, -shell_d + lip_h + eps))
-lid = lid.cut(posts(lid_screw_pts, screw_cb_d, -box_t - eps, -box_t + screw_cb_h))
+# cable notch in the top of the right wall
+base = base.cut(blk(box_x1 - wall - eps, box_x1 + eps,
+                    cable_y - cable_w / 2, cable_y + cable_w / 2,
+                    -panel_t - cable_h, -panel_t + eps))
 
 # ============================================================
 # PEDESTAL
 # ============================================================
-Q = (BB[0] - ped_band * lid_dir[0], BB[1] - ped_band * lid_dir[1])
+Q = (BB[0] - ped_band * under_dir[0], BB[1] - ped_band * under_dir[1])
 
 _ang = math.radians(tilt_deg + ped_front_ang)
 F1 = (Q[0] - (Q[1] - foot_t) / math.tan(_ang), foot_t)
@@ -254,44 +259,45 @@ def ped_extrusion(width, offset_2d=None):
     return w.extrude(width)
 
 
-pedestal = ped_extrusion(ped_w).translate((-ped_w / 2.0, 0, 0))
+pedestal = ped_extrusion(ped_w).translate((box_xc - ped_w / 2.0, 0, 0))
 pedestal = pedestal.edges("|X").fillet(ped_edge_r)
 pedestal = pedestal.cut(
     ped_extrusion(ped_w - 2 * ped_wall, -ped_wall)
-    .translate((-ped_w / 2.0 + ped_wall, 0, -ped_wall)))
+    .translate((box_xc - ped_w / 2.0 + ped_wall, 0, -ped_wall)))
 
-# pilot holes for the screws coming through the lid
+# pilot holes for the screws coming through the floor
 pedestal = pedestal.cut(place(posts(ped_screw_pts, pilot_d,
                                     -box_t - ped_pilot_depth, -box_t + eps)))
 
 # ============================================================
 # EXPORT
 # ============================================================
-assembly = place(shell).union(place(lid)).union(pedestal)
+assembly = place(panel).union(place(base)).union(pedestal)
 
-shell_print = shell.rotate((0, 0, 0), (1, 0, 0), 180).translate((0, box_l, 0))
-lid_print = lid.translate((0, 0, box_t))     # outer face on the bed, posts upward
+panel_print = panel.rotate((0, 0, 0), (1, 0, 0), 180).translate((0, box_l, 0))   # face on the bed
+base_print = base.translate((0, 0, box_t))     # floor on the bed, walls upward
 
 for shape, name in ((assembly, "console_assembly"),
-                    (shell_print, "console_shell"),
-                    (lid_print, "console_lid"),
+                    (panel_print, "console_panel"),
+                    (base_print, "console_base"),
                     (pedestal, "console_pedestal")):
     cq.exporters.export(shape, f"{name}.stl", tolerance=0.01, angularTolerance=0.1)
     bb = shape.val().BoundingBox()
     print(f"{name:18s} {bb.xlen:6.1f} x {bb.ylen:6.1f} x {bb.zlen:6.1f} mm  (z from {bb.zmin:.1f})")
 
-print(f"panel {box_w} x {box_l} mm, cavity {cavity_d:.1f} mm deep behind the panel")
+print(f"box x {box_x0:.2f}..{box_x1:.2f} ({box_w:.2f} x {box_l} mm), "
+      f"cavity {cavity_d:.1f} mm deep behind the panel")
 print(f"display PCB x {disp_cx - disp_pcb_w / 2:.2f}..{disp_cx + disp_pcb_w / 2:.2f}, "
       f"y {disp_cy - disp_pcb_l / 2:.2f}..{disp_cy + disp_pcb_l / 2:.2f}")
 print(f"window {win_w:.2f} x {win_l:.2f} at x {win_cx - win_w / 2:.2f}..{win_cx + win_w / 2:.2f}")
-print(f"  PCB shoulder behind the panel: "
-      f"{(win_cx - win_w / 2) - (disp_cx - disp_pcb_w / 2):.2f} mm at -x, "
-      f"{(disp_cx + disp_pcb_w / 2) - (win_cx + win_w / 2):.2f} mm at +x")
-print(f"glass sits {panel_t - disp_glass_h:.2f} mm below the panel face")
 print(f"switch holes d{sw_hole_d} at x={sw_pts[0][0]}/{sw_pts[2][0]}, "
       f"y={sw_pts[0][1]}/{sw_pts[1][1]}")
-print(f"gap PCB to nearest switch nut: "
-      f"{sw_pts[0][0] - 5.775 - (disp_cx + disp_pcb_w / 2):.2f} mm")
-print(f"display clamp posts {disp_post_top + shell_d:.1f} mm tall")
-print(f"cable slot {cable_w} x {cable_h} at x {cable_x - cable_w / 2:.2f}..{cable_x + cable_w / 2:.2f}, "
-      f"posts at x={disp_post_pts[0][0]:.2f}/{disp_post_pts[2][0]:.2f}")
+print(f"display board x {board_x0:.2f}..{board_x1:.2f}, y {board_y0:.2f}..{board_y1:.2f}, "
+      f"J2 centre ({j2_x:.2f}, {j2_y:.2f})")
+print(f"  board to inner walls: {board_x0 - (box_x0 + wall):.2f} left, "
+      f"{(box_x1 - wall) - board_x1:.2f} right, "
+      f"{board_y0 - wall:.2f} front, {(box_l - wall) - board_y1:.2f} back")
+print(f"  board to studs: {board_y0 - (stud_y[0] + boss_d / 2):.2f} front, "
+      f"{(stud_y[1] - boss_d / 2) - board_y1:.2f} back")
+print(f"cable notch {cable_w} x {cable_h} in the right wall, y {cable_y - cable_w / 2:.2f}..{cable_y + cable_w / 2:.2f}")
+print(f"pedestal x {box_xc - ped_w / 2:.2f}..{box_xc + ped_w / 2:.2f}")
