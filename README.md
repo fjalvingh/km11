@@ -9,6 +9,8 @@ The main PCB must be placed in the PDP 11/05. The LCD display and the switches s
 a second, small PCB (`kicad/kmdisp`) at the end of a 20-way ribbon cable, so they can be
 outside the pdp/11 in the 3D-printed console from `3d/`.
 
+![The final version, in its 3d printed housing](final-1.png)
+
 ## Hardware
 
 The board uses:
@@ -19,15 +21,15 @@ The board uses:
 
 A PCB has been requested for the first version, let's hope it works :smile:
 
-## Schematic and PCB views, version 1
+## Schematic and PCB views, version 1.1
 
 ![schematic](schematic.png)
 
-![pcb layout](pcblayout.png)
+## Display and switches board
 
-![3d view](3dview.png)
+![The schematic for the display and switches board which resides in the housing](display-schematic.png)
 
-This version had some issues, so a respin is being done.
+![The PCB for the display and switches board](display-pcb.png)
 
 ## Code
 
@@ -63,9 +65,9 @@ documentation, with the sources.
 
 ## Programming
 
-To program the ATTINY1616 please follow the setup and instructions from [my 8bit bus display tool](https://github.com/fjalvingh/8bit-busdisplay).
+To program the ATTINY1616 please follow the setup and instructions from [my 8bit bus display tool](https://github.com/fjalvingh/8bit-busdisplay). The source code is under src/, and to compile and upload use `make upload` there with the programmer connected.
 
-## Testing
+## The prototype
 
 I made a small test setup to test driving the display:
 
