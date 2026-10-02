@@ -7,10 +7,10 @@ Both drawing sets are read: the 1973 one is M7261 rev E, the 1976 one rev F.
 They differ only in the AUX and CKO bits of 14 microwords; this asserts that,
 and keeps AUX for both revisions. CKO is not on any KM11 lamp.
 
-BUT is taken as printed, bit 3 leftmost. The transcription's own BUTNAME column
-unscrambles the bits, which puts IR-DECODE on RST-1; read straight, it lands on
-F-5 (KD11-B manual table 5-4), SSYNC on INT-1 ("SET SLAVE SYNC") and IR-CLK on
-F-4, which is where the manual says they are.
+BUT is taken as printed, bit 3 leftmost: IR-DECODE lands on F-5 (KD11-B manual
+table 5-4), SSYNC on INT-1 ("SET SLAVE SYNC") and IR-CLK on F-4. Before October
+2026 the transcription unscrambled BUT into signal order, which was wrong; it has
+been corrected there too.
 
     python3 gen_microcode.py [path to derived/]
 """
