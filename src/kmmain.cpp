@@ -7,6 +7,7 @@
 #include "font5x7.h"
 #include "pcf8574.h"
 #include "signals.h"
+#include "microtags.h"
 
 // The 20MHz fuse only selects the oscillator; the main clock still comes out of
 // a divide-by-6 prescaler after reset, so the prescaler has to be set here for
@@ -326,6 +327,15 @@ static void space(uint16_t& x, const Font *font = &FontSmall) {
 	x += (font->width + 1);
 }
 
+// Pads buf with spaces to `width` characters, so a short text overwrites a
+// longer one left by the previous frame.
+static void padTo(char *buf, uint8_t width) {
+	uint8_t n = (uint8_t) strlen(buf);
+	while(n < width)
+		buf[n++] = ' ';
+	buf[n] = '\0';
+}
+
 // What the processor keeps in each scratchpad register (KD11-B manual, Table
 // 4-3). R13..R16 are unused. Three cells each so a shorter name overwrites a
 // longer one.
@@ -480,6 +490,41 @@ static void example() {
 	uint8_t cycle = (flags & SIG_C1 ? 2 : 0) | (flags & SIG_C0 ? 1 : 0);
 	strcpy_P(buf, cycleNames[cycle]);
 	flagText(col2, y + 3 * rowH, buf, flags & SIG_MSYN, &font);
+
+	//-- Bottom line: DEC's tag for the microstep the MPC points at. That is
+	// the step about to execute, not the one whose effects are on the lamps
+	// (KD11-B manual 5.9 e), hence NXT, the field name for it.
+	y += 4 * rowH;
+	x = lcdDrawText_P(0, y, PSTR("NXT"), LCD_WHITE, currentBg, &font);
+	space(x, &font);
+	strcpy_P(buf, microTags[getMPC()]);
+	if(buf[0] == '\0')						// not in the listing
+		strcpy(buf, "?");
+	padTo(buf, MICROTAG_LEN);
+	x = lcdDrawText(x, y, buf, LCD_CYAN, currentBg, &font);
+	space(x, &font);
+
+	// The expanders that did not answer. Their inputs read as all ones, which
+	// decodes to plausible values; this says which part of the screen is not
+	// real. Blank while all six answer.
+	uint8_t n = 0;
+	if(pcfStatus != 0) {
+		buf[n++] = 'I';
+		buf[n++] = '2';
+		buf[n++] = 'C';
+		buf[n++] = ':';
+		if(pcfStatus == (1 << PCF_COUNT) - 1) {
+			strcpy(buf + n, "ALL");
+			n += 3;
+		} else {
+			for(uint8_t i = 0; i < PCF_COUNT; i++)
+				if(pcfStatus & (1 << i))
+					buf[n++] = (char) ('2' + i);		// bit 0 is U2
+		}
+	}
+	buf[n] = '\0';
+	padTo(buf, 9);
+	lcdDrawText(x, y, buf, LCD_RED, currentBg, &font);
 }
 
 // Reset diagnostics, shown in the bottom-right corner while RESET_DIAG is set

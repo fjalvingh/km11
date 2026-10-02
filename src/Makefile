@@ -82,12 +82,13 @@ $(OBJECTS): Makefile diagmode.stamp
 .PHONY: force
 diagmode.stamp: force
 	@echo "$(DIAG_MODE) $(LCD_SPI_DIV) $(EXTRA)" | cmp -s - $@ || echo "$(DIAG_MODE) $(LCD_SPI_DIV) $(EXTRA)" > $@
-kmmain.o: lcd.h font.h font5x7.h font8x16.h lcd_config.h pcf8574.h signals.h
+kmmain.o: lcd.h font.h font5x7.h font8x16.h lcd_config.h pcf8574.h signals.h microtags.h
 lcd.o: lcd.h font.h font5x7.h font8x16.h lcd_config.h
 font5x7.o: font.h font5x7.h
 font8x16.o: font.h font8x16.h
 pcf8574.o: pcf8574.h
 signals.o: signals.h pcf8574.h
+microtags.o: microtags.h
 
 # Upload step
 # Flash the .hex file onto the chip

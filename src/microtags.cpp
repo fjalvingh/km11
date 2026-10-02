@@ -1,0 +1,42 @@
+// DEC microstep tags of the KD11-B control store, indexed by microaddress.
+// Generated from the transcription of the microcode listing in the 11/05
+// engineering drawings (the tags are the same in the 1973 rev E and 1976 rev
+// F sets). 42 of the 256 locations are not in the listing; they are empty.
+// The tags are the step names used by the microprogram flow diagrams.
+#include <avr/pgmspace.h>
+#include "microtags.h"
+
+const char microTags[256][MICROTAG_LEN + 1] PROGMEM = {
+	"RS-1", "RT-1", "", "ET2-2", "ET2-3", "R1-1", "SB1-8", "S0-2",	// 000
+	"ERT-1", "ET-1", "SB2-2", "B2-2D", "S2-3", "B-1", "S3-2", "S3-3",	// 010
+	"SBO-7", "T-1", "SB2-4", "SB2-5", "SB2-6", "S6-2", "S6-3", "S6-4",	// 020
+	"S6-5", "SB2-7", "S7-2", "S7-3", "S7-4", "S7-5", "ET2-5", "ET2-6",	// 030
+	"BG-1", "H-1", "LC-1", "PF-1", "", "BT-1", "ERT1A", "SBF-1",	// 040
+	"SBO-6", "ET2-7", "SBO-8", "F-2", "", "", "", "D6-4",	// 050
+	"URTX", "F-5", "F-1", "W-1", "URTR", "D1-6", "", "SBO-1",	// 060
+	"D3-3", "D3-4", "D3-5", "", "RS-3", "D6-2", "", "D6-3",	// 070
+	"CS-1", "D0-1", "", "D1-1", "D7-3", "D2-1", "D7-5", "D3-1",	// 100
+	"DBF-1", "D4-1", "CC-1", "D5-1", "", "D6-1", "SC-1", "D7-1",	// 110
+	"", "", "", "DO-2", "DO-3", "DO-4", "DO-5", "DO-6",	// 120
+	"DO-7", "DO-8", "DO-9", "", "S3-4", "DO-12", "DO-13", "DO-14",	// 130
+	"DO-15", "DO-16", "DO-17", "DO-18", "SB1-5", "A145", "B-3", "B-2",	// 140
+	"", "CCM-1", "MB-2", "ERT1B", "MB-0", "D0-3A", "DB0-1", "D0-2",	// 150
+	"D3-2", "", "D0-3", "D1-4", "DB0-2", "DO-10", "SB1-1", "SB2-1",	// 160
+	"", "", "SB1-2", "SB1-3", "SB1-4", "", "SB1-6", "SB1-7",	// 170
+	"D1-2", "S0-1", "", "S1-1", "J1-1", "S2-1", "J2-4", "S3-1",	// 200
+	"D1-3", "S4-1", "J2-1", "S5-1", "J2-3", "S6-1", "J2-5", "S7-1",	// 210
+	"SB2-3", "R1-2", "R1-3", "R1-4", "R1-5", "R1-6", "ET-6", "R2-1",	// 220
+	"R2-2", "R2-3", "R2-4", "", "R2-6", "R2-7", "R2-8", "R2-9",	// 230
+	"MB-1", "RS-1A", "", "", "S1-2", "ET-2", "ET-3", "ET-5",	// 240
+	"DF-1", "ET-7", "ET-8", "ET-9", "ET-10", "ET-11", "ET-12", "ET-13",	// 250
+	"J1-2", "J2-1A", "J2-2", "J2-6", "J2-7", "J2-8", "", "",	// 260
+	"DO-1", "", "CCS-3", "IT-1", "S3-5", "", "CCS-2", "",	// 270
+	"D6-5", "S2-2", "H-2", "CD1-2", "DB0-3", "B2-2", "", "CE1-2",	// 300
+	"D7-2", "CL-1", "CD2-1", "CD1-1", "CD1-4", "CE2-1", "CCS-1", "CE1-1",	// 310
+	"D7-4", "CS-3", "CS-2", "", "SBO-3", "INT-1", "CE1-3", "",	// 320
+	"SB2-8", "D2-2", "D0-4", "B2-2A", "D1-5", "B2-2B", "", "CD2-2",	// 330
+	"SBO-4", "D2-3", "DO-11", "B2-2C", "", "", "SBO-2", "RS-2",	// 340
+	"CCM-2", "RS-4", "U1-1", "U2-1", "U3-1", "U4-1", "", "RST-1",	// 350
+	"", "SBO-5", "", "", "F-4", "F-3", "", "CL-3",	// 360
+	"", "CE2-2", "CD1-5", "U5-1", "CD1-3", "CL-2", "", "",	// 370
+};
