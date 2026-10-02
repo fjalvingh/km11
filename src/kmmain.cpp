@@ -1,6 +1,7 @@
 #include <avr/io.h>
 #include <util/delay.h>
 #include <avr/pgmspace.h>
+#include <string.h>
 
 #include "lcd.h"
 #include "font5x7.h"
@@ -275,31 +276,29 @@ __attribute__((unused)) static void textLoop() {
 	}
 }
 
-static uint16_t flagsStartY = (FontLarge.height + 1) * 2 + 6;
-
 static uint8_t pcfStatus;
 static uint16_t currentBg = LCD_BLACK;
-static uint16_t currentFlagX;
-static uint16_t currentFlagY = flagsStartY;
 
-static void flagTop(const Font *font = &FontSmall) {
-	currentFlagY = flagsStartY;
-	currentFlagX += lineX(6, font);
+// Shows a flag in place: asserted is upper case in yellow, negated lower case
+// in red, so the state reads even without the colour. Works on a RAM copy
+// because it changes the case. Returns the x just past the text.
+static uint16_t flagText(uint16_t x, uint16_t y, char *name, bool on, const Font *font = &FontSmall) {
+	if(!on) {
+		for(char *p = name; *p != '\0'; p++)
+			if(*p >= 'A' && *p <= 'Z')
+				*p += 'a' - 'A';
+	}
+	return lcdDrawText(x, y, name, on ? LCD_YELLOW : LCD_LIGHTRED, currentBg, font);
 }
 
-/**
- * Shows a flag either ON or OFF, and moves to the next FLAG position.
- */
-// Takes the flag word masked, not a boolean, so the caller can pass
-// (flags & SIG_x) straight in - hence uint16_t: the U7 signals live in the high
-// byte and an uint8_t parameter would truncate every one of them to zero.
-static void flagDisp(const char* name, uint16_t value, const Font *font = &FontSmall) {
-	uint16_t color = value == 0 ? LCD_LIGHTRED : LCD_YELLOW;
-	lcdDrawText_P(currentFlagX, currentFlagY, name, color, currentBg, font);
-	currentFlagY += (font->height + 1);
-	if(currentFlagY + font->height > LCD_H) {
-		flagTop(font);
-	}
+// Same, for a name in flash. Takes the flag word masked, not a boolean, so the
+// caller can pass (flags & SIG_x) straight in - hence uint16_t: the U7 signals
+// live in the high byte and an uint8_t parameter would truncate them to zero.
+static uint16_t flagDisp(uint16_t x, uint16_t y, const char *name, uint16_t value, const Font *font = &FontSmall) {
+	char buf[8];
+	strncpy_P(buf, name, sizeof buf - 1);
+	buf[sizeof buf - 1] = '\0';
+	return flagText(x, y, buf, value != 0, font);
 }
 
 // The last sample off the expanders. Everything the screen draws comes out of
@@ -325,6 +324,71 @@ static uint8_t getAluS() {
 
 static void space(uint16_t& x, const Font *font = &FontSmall) {
 	x += (font->width + 1);
+}
+
+// What the processor keeps in each scratchpad register (KD11-B manual, Table
+// 4-3). R13..R16 are unused. Three cells each so a shorter name overwrites a
+// longer one.
+static const char spadNames[16][4] PROGMEM = {
+	"   ", "   ", "   ", "   ", "   ", "   ", "SP ", "PC ",
+	"SRC", "DST", "VEC", "   ", "   ", "   ", "   ", "LAD",
+};
+
+// The 74181 functions as the KD11-B uses them: its A and B legs are active low
+// (KD11-B manual 4.3.5), so this is the ACTIVE-LOW-DATA half of the 74181 truth
+// table, where M high selects logic and CIN high adds one. Indexed by S3..S0 as
+// the screen shows them (already inverted from the ALU S* lamps). "+" is
+// addition, "|" OR; every DEC name in the microcode listing checks out against
+// this table (A plus B = 9, A minus B minus 1 = 6, BL = 10, ABAR = 0, ...).
+static const char aluLogic[16][7] PROGMEM = {
+	"~A",     "~(A&B)", "~A|B",   "-1",     "~(A|B)", "~B",     "~(A^B)", "A|~B",
+	"~A&B",   "A^B",    "B",      "A|B",    "0",      "A&~B",   "A&B",    "A",
+};
+// Arithmetic without carry in. With carry the result is one higher: a trailing
+// "-1" is dropped, otherwise "+1" is appended.
+static const char aluArith[16][11] PROGMEM = {
+	"A-1",        "A&B-1",  "A&~B-1",     "-1",
+	"A+(A|~B)",   "A&B+(A|~B)", "A-B-1",  "A|~B",
+	"A+(A|B)",    "A+B",    "A&~B+(A|B)", "A|B",
+	"A+A",        "A&B+A",  "A&~B+A",     "A",
+};
+
+// Cells left for the name on the ALU line. Five of the 32 arithmetic results
+// have longer names ("A&~B+(A|B)+1" is 12); they show as "?", and the raw S,
+// M and C beside them still say exactly what the ALU is doing. None of the
+// five occurs in the microcode listing (the instruction-decode ROMs, which
+// can also drive the ALU, are not transcribed).
+#define ALU_NAME_W	9
+
+// Names the ALU function into buf, space padded to ALU_NAME_W so it overwrites
+// whatever the previous frame left there.
+static void aluName(char *buf, uint8_t s, bool logic, bool carry) {
+	uint8_t n;
+	if(logic) {
+		strcpy_P(buf, aluLogic[s]);
+		n = strlen(buf);
+	} else {
+		strcpy_P(buf, aluArith[s]);
+		n = strlen(buf);
+		if(carry) {
+			if(n == 2) {					// "-1" plus one
+				strcpy(buf, "0");
+				n = 1;
+			} else if(buf[n - 2] == '-' && buf[n - 1] == '1') {
+				n -= 2;
+			} else {
+				buf[n++] = '+';
+				buf[n++] = '1';
+			}
+		}
+	}
+	if(n > ALU_NAME_W) {
+		buf[0] = '?';
+		n = 1;
+	}
+	while(n < ALU_NAME_W)
+		buf[n++] = ' ';
+	buf[n] = '\0';
 }
 
 static void example() {
@@ -356,56 +420,66 @@ static void example() {
 	space(x, &font);
 	x = lcdDrawText(x, y, buf, LCD_GREEN, currentBg, &font);
 
-	//-- NEXT LINE
-	y = lineY(1, &FontLarge);
-	x = 0;
-
-	x = lcdDrawText_P(x, y, PSTR("SPAD"), LCD_WHITE, currentBg, &font);
-	formatHex(buf, getSPAD(), 1);
+	//-- SPAD: the register as DEC numbers it (R0..R17, octal), what the
+	// processor keeps in it, and the write strobe.
+	y = lineY(1, &font);
+	x = lcdDrawText_P(0, y, PSTR("SPAD"), LCD_WHITE, currentBg, &font);
 	space(x, &font);
+	uint8_t spad = getSPAD();
+	buf[0] = 'R';
+	formatOctal(buf + 1, spad, spad > 7 ? 2 : 1);
+	if(spad <= 7) {							// "R7 " overwrites a previous "R17"
+		buf[2] = ' ';
+		buf[3] = '\0';
+	}
 	x = lcdDrawText(x, y, buf, LCD_GREEN, currentBg, &font);
-
 	space(x, &font);
-	x = lcdDrawText_P(x, y, PSTR("ALU_S"), LCD_WHITE, currentBg, &font);
-	formatHex(buf, getAluS(), 1);
+	x = lcdDrawText_P(x, y, spadNames[spad], LCD_CYAN, currentBg, &font);
 	space(x, &font);
-	x = lcdDrawText(x, y, buf, LCD_GREEN, currentBg, &font);
-
-	currentFlagX = lineX(0);
-	currentFlagY = flagsStartY;			// flagDisp() leaves it wherever it ended
-
 	uint16_t flags = currentSignals.flags;
+	flagDisp(x, y, PSTR("SPWR"), flags & SIG_SPWR, &font);
 
-	flagDisp(PSTR("ALUM"), flags & SIG_ALUM, &font);
-	flagDisp(PSTR("CIN"), flags & SIG_CIN, &font);
-	flagDisp(PSTR("EALU"), flags & SIG_EALU, &font);
-	flagDisp(PSTR("SPWR"), flags & SIG_SPWR, &font);
+	//-- ALU: the raw select code, mode and carry in, then what they compute.
+	// Plain glyph-wide gaps here, not space(), to leave ALU_NAME_W cells for
+	// the name.
+	y = lineY(2, &font);
+	x = lcdDrawText_P(0, y, PSTR("ALU"), LCD_WHITE, currentBg, &font) + font.width;
+	x = lcdDrawText_P(x, y, PSTR("S"), LCD_WHITE, currentBg, &font);
+	formatHex(buf, getAluS(), 1);
+	x = lcdDrawText(x, y, buf, LCD_GREEN, currentBg, &font) + font.width;
+	x = flagDisp(x, y, PSTR("M"), flags & SIG_ALUM, &font) + font.width;
+	x = flagDisp(x, y, PSTR("C"), flags & SIG_CIN, &font) + font.width;
+	aluName(buf, getAluS(), flags & SIG_ALUM, flags & SIG_CIN);
+	// The ALU output only reaches the AMUX, and only while EALU selects it.
+	lcdDrawText(x, y, buf, flags & SIG_EALU ? LCD_GREEN : LCD_GREY, currentBg, &font);
 
-	flagTop(&font);
-	flagDisp(PSTR("AUXC"), flags & SIG_AUX_C, &font);
-	flagDisp(PSTR("BUTJJ"), flags & SIG_BUT_JJ, &font);
-	flagDisp(PSTR("BUTUN"), flags & SIG_BUT_UN, &font);
-	flagDisp(PSTR("CNST"), flags & SIG_CNST, &font);
+	//-- The single-bit signals, one column per group: ALU and data path
+	// control, the microprogram branch tests, and the Unibus.
+	const uint16_t col0 = 0;
+	const uint16_t col1 = lineX(5, &font);
+	const uint16_t col2 = lineX(11, &font);
+	const uint16_t rowH = font.height + 1;
+	y = lineY(3, &font) + 6;
 
-	flagTop(&font);
-	flagDisp(PSTR("MSYN"), flags & SIG_MSYN, &font);
-	flagDisp(PSTR("SSYN"), flags & SIG_SSYN, &font);
-	flagDisp(PSTR("C1"), flags & SIG_C1, &font);
-	flagDisp(PSTR("C0"), flags & SIG_C0, &font);
+	flagDisp(col0, y, PSTR("EALU"), flags & SIG_EALU, &font);
+	flagDisp(col0, y + rowH, PSTR("AUXC"), flags & SIG_AUX_C, &font);
+	flagDisp(col0, y + 2 * rowH, PSTR("CNST"), flags & SIG_CNST, &font);
 
-	//-- Last two
-	// currentFlagY += font.height + 1;
-	uint16_t last = currentFlagY;
-	currentFlagX = 0;
+	flagDisp(col1, y, PSTR("BUTIR"), flags & SIG_BUT_IR, &font);
+	flagDisp(col1, y + rowH, PSTR("BUTJJ"), flags & SIG_BUT_JJ, &font);
+	flagDisp(col1, y + 2 * rowH, PSTR("BUTUN"), flags & SIG_BUT_UN, &font);
 
-	flagDisp(PSTR("BUTIR"), flags & SIG_BUT_IR, &font);
+	flagDisp(col2, y, PSTR("MSYN"), flags & SIG_MSYN, &font);
+	flagDisp(col2, y + rowH, PSTR("SSYN"), flags & SIG_SSYN, &font);
+	flagDisp(col2, y + 2 * rowH, PSTR("BBSY"), flags & SIG_BBSY, &font);
 
-	currentFlagX = 80;
-	currentFlagY = last;
-	flagDisp(PSTR("BBSY"), flags & SIG_BBSY, &font);
-
-
-
+	// C1 C0 name the Unibus cycle (KD11-B Table 5-4), shown with its code.
+	// Styled as a flag on MSYN, which is when the code is valid. Padded to
+	// seven cells so a shorter name overwrites a longer one.
+	static const char cycleNames[4][8] PROGMEM = { "DATI=0 ", "DATIP=1", "DATO=2 ", "DATOB=3" };
+	uint8_t cycle = (flags & SIG_C1 ? 2 : 0) | (flags & SIG_C0 ? 1 : 0);
+	strcpy_P(buf, cycleNames[cycle]);
+	flagText(col2, y + 3 * rowH, buf, flags & SIG_MSYN, &font);
 }
 
 // Reset diagnostics, shown in the bottom-right corner while RESET_DIAG is set
