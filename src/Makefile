@@ -82,18 +82,30 @@ $(OBJECTS): Makefile diagmode.stamp
 .PHONY: force
 diagmode.stamp: force
 	@echo "$(DIAG_MODE) $(LCD_SPI_DIV) $(EXTRA)" | cmp -s - $@ || echo "$(DIAG_MODE) $(LCD_SPI_DIV) $(EXTRA)" > $@
-kmmain.o: lcd.h font.h font5x7.h font8x16.h lcd_config.h pcf8574.h signals.h microtags.h
+kmmain.o: lcd.h font.h font5x7.h font8x16.h lcd_config.h pcf8574.h signals.h microtags.h mcheck.h
 lcd.o: lcd.h font.h font5x7.h font8x16.h lcd_config.h
 font5x7.o: font.h font5x7.h
 font8x16.o: font.h font8x16.h
 pcf8574.o: pcf8574.h
 signals.o: signals.h pcf8574.h
 microtags.o: microtags.h
+microcode.o: microcode.h
+mcheck.o: mcheck.h microcode.h signals.h
 
 # Upload step
 # Flash the .hex file onto the chip
 upload:
 	avrdude -v -p $(DEVICE) -c $(PROGRAMMER) -P $(PORT) -b $(BAUD) -U flash:w:$(FILENAME).hex:i
+
+# The microcode revision the lamp check uses, in EEPROM byte 0. The firmware
+# learns it by itself the first time a single step passes one of the 14
+# microwords where rev E and rev F differ; this forces it, or (AUTO) forgets it.
+# Uploading firmware erases the EEPROM, so it is learnt again after that.
+#   make REV=E eeprom     make REV=F eeprom     make REV=AUTO eeprom
+REV_BYTE = $(if $(filter E,$(REV)),0x45,$(if $(filter F,$(REV)),0x46,$(if $(filter AUTO,$(REV)),0xff,)))
+eeprom:
+	$(if $(REV_BYTE),,$(error set REV=E, REV=F or REV=AUTO))
+	avrdude -v -p $(DEVICE) -c $(PROGRAMMER) -P $(PORT) -b $(BAUD) -U eeprom:w:$(REV_BYTE):m
 
 # Remove intermediate files
 clean:

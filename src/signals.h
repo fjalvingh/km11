@@ -38,6 +38,11 @@ struct KmSignals {
 #define SIG_C0		0x1000		// U7 P4, C0*
 #define SIG_C1		0x2000		// U7 P5, C1*
 
+static inline bool signalsEqual(const KmSignals &a, const KmSignals &b) {
+	return a.mpc == b.mpc && a.amux == b.amux && a.spad == b.spad
+		&& a.aluS == b.aluS && a.flags == b.flags;
+}
+
 // Turns six raw expander bytes into a KmSignals. Split out from the read so it
 // can be exercised without the hardware.
 void signalsDecode(const uint8_t raw[6], KmSignals *out);
