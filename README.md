@@ -19,9 +19,9 @@ The board uses:
 * Six PCF8574T I2C extenders to connect to both KM11 slots
 * A 1.8" 160x128 LCD display to show the data
 
-A PCB has been requested for the first version, let's hope it works :smile:
-
 ## Schematic and PCB views, version 1.1
+
+The first version had some small issues which were repaired in this version.
 
 ![schematic](schematic.png)
 
