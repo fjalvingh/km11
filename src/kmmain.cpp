@@ -277,55 +277,40 @@ __attribute__((unused)) static void textLoop() {
 	}
 }
 
-static uint8_t pcfStatus;
+__attribute__((unused)) static uint8_t pcfStatus;
 static uint16_t currentBg = LCD_BLACK;
+
+// Background behind a value that differs from the machine state before the
+// last change, so a single step shows what it moved. Dark enough that the
+// red, yellow, green and cyan text stays readable on it.
+static constexpr uint16_t LCD_HILITE = rgb565(0, 0, 150);
 
 // Shows a flag in place: asserted is upper case in yellow, negated lower case
 // in red, so the state reads even without the colour. Works on a RAM copy
 // because it changes the case. Returns the x just past the text.
-static uint16_t flagText(uint16_t x, uint16_t y, char *name, bool on, const Font *font = &FontSmall) {
+static uint16_t flagText(uint16_t x, uint16_t y, char *name, bool on, uint16_t bg, const Font *font = &FontSmall) {
 	if(!on) {
 		for(char *p = name; *p != '\0'; p++)
 			if(*p >= 'A' && *p <= 'Z')
 				*p += 'a' - 'A';
 	}
-	return lcdDrawText(x, y, name, on ? LCD_YELLOW : LCD_LIGHTRED, currentBg, font);
+	return lcdDrawText(x, y, name, on ? LCD_YELLOW : LCD_LIGHTRED, bg, font);
 }
 
-// Same, for a name in flash. Takes the flag word masked, not a boolean, so the
-// caller can pass (flags & SIG_x) straight in - hence uint16_t: the U7 signals
-// live in the high byte and an uint8_t parameter would truncate them to zero.
-static uint16_t flagDisp(uint16_t x, uint16_t y, const char *name, uint16_t value, const Font *font = &FontSmall) {
+// Same, for a name in flash.
+static uint16_t flagDisp(uint16_t x, uint16_t y, const char *name, bool on, uint16_t bg, const Font *font = &FontSmall) {
 	char buf[8];
 	strncpy_P(buf, name, sizeof buf - 1);
 	buf[sizeof buf - 1] = '\0';
-	return flagText(x, y, buf, value != 0, font);
+	return flagText(x, y, buf, on, bg, font);
 }
 
 // The last sample off the expanders. Everything the screen draws comes out of
 // here, so a failed read leaves the previous frame's numbers on the glass
 // rather than blanking them.
-static KmSignals currentSignals;
-
-static uint8_t getMPC() {
-	return currentSignals.mpc;
-}
-
-static uint16_t getAMUX() {
-	return currentSignals.amux;
-}
-
-static uint8_t getSPAD() {
-	return currentSignals.spad;
-}
-
-static uint8_t getAluS() {
-	return currentSignals.aluS;
-}
-
-static void space(uint16_t& x, const Font *font = &FontSmall) {
-	x += (font->width + 1);
-}
+__attribute__((unused)) static KmSignals currentSignals;
+// The state before the last change, which drawScreen() highlights against.
+__attribute__((unused)) static KmSignals previousSignals;
 
 // Pads buf with spaces to `width` characters, so a short text overwrites a
 // longer one left by the previous frame.
@@ -401,130 +386,209 @@ static void aluName(char *buf, uint8_t s, bool logic, bool carry) {
 	buf[n] = '\0';
 }
 
-static void example() {
-	uint16_t x = 0;
-	uint16_t y = 0;
+// Everything on the main screen sits at a fixed place and is drawn only when
+// what it shows changes, so a quiet machine costs no SPI traffic and a running
+// one only repaints what moved. Each field remembers the key it was last drawn
+// with: its value plus whether it is highlighted.
+enum Field : uint8_t {
+	F_MPC, F_AMUX, F_SPAD, F_SPWR, F_ALUS, F_ALUM, F_CIN, F_ALUNAME,
+	F_EALU, F_AUXC, F_CNST, F_BUTIR, F_BUTJJ, F_BUTUN,
+	F_MSYN, F_SSYN, F_BBSY, F_CYCLE, F_NXT, F_I2C,
+	F_COUNT
+};
+
+static uint32_t drawnKey[F_COUNT];
+static bool screenDrawn;				// false: draw every field, and the labels
+
+static bool fieldDue(Field f, uint32_t key) {
+	if(screenDrawn && drawnKey[f] == key)
+		return false;
+	drawnKey[f] = key;
+	return true;
+}
+
+static uint32_t fieldKey(uint16_t value, bool hilite) {
+	return (uint32_t) value | (hilite ? 0x10000UL : 0);
+}
+
+static uint16_t fieldBg(bool hilite) {
+	return hilite ? LCD_HILITE : currentBg;
+}
+
+// Pixel layout: eight lines of the large font fill the 128 pixel height
+// exactly, so lines are 16 apart with no extra gap. The font never uses the
+// bottom row of its cell, which keeps the lines apart.
+static const uint8_t ROW_H = 16;		// FontLarge.height
+static const uint8_t GRID_Y = 3 * ROW_H;
+static_assert(GRID_Y + 5 * ROW_H <= LCD_H, "the NXT line must be on the screen");
+static const uint8_t GRID_COL1 = 45;
+static const uint8_t GRID_COL2 = 99;
+
+// One single-bit signal in the grid, highlighted when it changed.
+struct GridFlag {
+	const char *name;					// in flash
+	uint16_t mask;
+	uint8_t x;
+	uint8_t row;
+};
+
+static const char nEALU[] PROGMEM = "EALU";
+static const char nAUXC[] PROGMEM = "AUXC";
+static const char nCNST[] PROGMEM = "CNST";
+static const char nBUTIR[] PROGMEM = "BUTIR";
+static const char nBUTJJ[] PROGMEM = "BUTJJ";
+static const char nBUTUN[] PROGMEM = "BUTUN";
+static const char nMSYN[] PROGMEM = "MSYN";
+static const char nSSYN[] PROGMEM = "SSYN";
+static const char nBBSY[] PROGMEM = "BBSY";
+
+// One column per group: ALU and data path control, the microprogram branch
+// tests, and the Unibus. In Field order from F_EALU on.
+static const GridFlag gridFlags[] = {
+	{ nEALU,  SIG_EALU,   0,         0 },
+	{ nAUXC,  SIG_AUX_C,  0,         1 },
+	{ nCNST,  SIG_CNST,   0,         2 },
+	{ nBUTIR, SIG_BUT_IR, GRID_COL1, 0 },
+	{ nBUTJJ, SIG_BUT_JJ, GRID_COL1, 1 },
+	{ nBUTUN, SIG_BUT_UN, GRID_COL1, 2 },
+	{ nMSYN,  SIG_MSYN,   GRID_COL2, 0 },
+	{ nSSYN,  SIG_SSYN,   GRID_COL2, 1 },
+	{ nBBSY,  SIG_BBSY,   GRID_COL2, 2 },
+};
+
+static void drawLabels(const Font *font) {
+	lcdDrawText_P(0,  0,         PSTR("MPC"),  LCD_WHITE, currentBg, font);
+	lcdDrawText_P(66, 0,         PSTR("AMUX"), LCD_WHITE, currentBg, font);
+	lcdDrawText_P(0,  ROW_H,     PSTR("SPAD"), LCD_WHITE, currentBg, font);
+	lcdDrawText_P(0,  2 * ROW_H, PSTR("ALU"),  LCD_WHITE, currentBg, font);
+	lcdDrawText_P(32, 2 * ROW_H, PSTR("S"),    LCD_WHITE, currentBg, font);
+	lcdDrawText_P(0,  GRID_Y + 4 * ROW_H, PSTR("NXT"), LCD_WHITE, currentBg, font);
+}
+
+// Draws `cur`, highlighting every value that differs from `prev`, the state
+// before the last change. The highlight therefore stays until the machine
+// moves again, which is what single stepping needs.
+__attribute__((unused)) static void drawScreen(const KmSignals &cur, const KmSignals &prev, uint8_t status) {
+	const Font *font = &FontLarge;
 	char buf[20];
-	// if(pcfStatus == 0) {
-	// 	currentBg = LCD_BLACK;
-	// } else {
-	// 	currentBg = LCD_BLUE;
-	// }
+	uint16_t flags = cur.flags;
+	uint16_t flagsChanged = cur.flags ^ prev.flags;
+	bool hl;
 
-	//-- 1st 2 lines: large text
-	const Font& font = FontLarge;
-	// The MPC is 8 bits, three octal digits: 000..377. Two decimal digits, as
-	// this once was, silently dropped the hundreds digit. Note that what the
-	// KM11 shows is the address of the NEXT microstep, not the current one
-	// (KD11-B manual, 5.9 e).
-	// 3+1+3+1+4+1+6 = 19 cells of 8 pixels, inside the 160 of the landscape
-	// screen.
-	x = lcdDrawText_P(x, y, PSTR("MPC"), LCD_WHITE, currentBg, &font);
-	space(x, &font);
-	formatOctal(buf, getMPC(), 3);
-	x = lcdDrawText(x, y, buf, LCD_GREEN, currentBg, &font);
+	if(!screenDrawn)
+		drawLabels(font);
 
-	space(x, &font);
-	x = lcdDrawText_P(x, y, PSTR("AMUX"), LCD_WHITE, currentBg, &font);
-	formatOctal(buf, getAMUX(), 6);
-	space(x, &font);
-	x = lcdDrawText(x, y, buf, LCD_GREEN, currentBg, &font);
+	// The MPC is 8 bits, three octal digits: 000..377. It is the address of
+	// the NEXT microstep, not the current one (KD11-B manual, 5.9 e).
+	hl = cur.mpc != prev.mpc;
+	if(fieldDue(F_MPC, fieldKey(cur.mpc, hl))) {
+		formatOctal(buf, cur.mpc, 3);
+		lcdDrawText(33, 0, buf, LCD_GREEN, fieldBg(hl), font);
+	}
+	hl = cur.amux != prev.amux;
+	if(fieldDue(F_AMUX, fieldKey(cur.amux, hl))) {
+		formatOctal(buf, cur.amux, 6);
+		lcdDrawText(107, 0, buf, LCD_GREEN, fieldBg(hl), font);
+	}
 
 	//-- SPAD: the register as DEC numbers it (R0..R17, octal), what the
 	// processor keeps in it, and the write strobe.
-	y = lineY(1, &font);
-	x = lcdDrawText_P(0, y, PSTR("SPAD"), LCD_WHITE, currentBg, &font);
-	space(x, &font);
-	uint8_t spad = getSPAD();
-	buf[0] = 'R';
-	formatOctal(buf + 1, spad, spad > 7 ? 2 : 1);
-	if(spad <= 7) {							// "R7 " overwrites a previous "R17"
-		buf[2] = ' ';
-		buf[3] = '\0';
+	hl = cur.spad != prev.spad;
+	if(fieldDue(F_SPAD, fieldKey(cur.spad, hl))) {
+		buf[0] = 'R';
+		formatOctal(buf + 1, cur.spad, cur.spad > 7 ? 2 : 1);
+		padTo(buf, 3);						// "R7 " overwrites a previous "R17"
+		lcdDrawText(41, ROW_H, buf, LCD_GREEN, fieldBg(hl), font);
+		lcdDrawText_P(74, ROW_H, spadNames[cur.spad], LCD_CYAN, fieldBg(hl), font);
 	}
-	x = lcdDrawText(x, y, buf, LCD_GREEN, currentBg, &font);
-	space(x, &font);
-	x = lcdDrawText_P(x, y, spadNames[spad], LCD_CYAN, currentBg, &font);
-	space(x, &font);
-	uint16_t flags = currentSignals.flags;
-	flagDisp(x, y, PSTR("SPWR"), flags & SIG_SPWR, &font);
+	hl = flagsChanged & SIG_SPWR;
+	if(fieldDue(F_SPWR, fieldKey(flags & SIG_SPWR, hl)))
+		flagDisp(107, ROW_H, PSTR("SPWR"), flags & SIG_SPWR, fieldBg(hl), font);
 
 	//-- ALU: the raw select code, mode and carry in, then what they compute.
-	// Plain glyph-wide gaps here, not space(), to leave ALU_NAME_W cells for
-	// the name.
-	y = lineY(2, &font);
-	x = lcdDrawText_P(0, y, PSTR("ALU"), LCD_WHITE, currentBg, &font) + font.width;
-	x = lcdDrawText_P(x, y, PSTR("S"), LCD_WHITE, currentBg, &font);
-	formatHex(buf, getAluS(), 1);
-	x = lcdDrawText(x, y, buf, LCD_GREEN, currentBg, &font) + font.width;
-	x = flagDisp(x, y, PSTR("M"), flags & SIG_ALUM, &font) + font.width;
-	x = flagDisp(x, y, PSTR("C"), flags & SIG_CIN, &font) + font.width;
-	aluName(buf, getAluS(), flags & SIG_ALUM, flags & SIG_CIN);
-	// The ALU output only reaches the AMUX, and only while EALU selects it.
-	lcdDrawText(x, y, buf, flags & SIG_EALU ? LCD_GREEN : LCD_GREY, currentBg, &font);
+	// Glyph-wide gaps here, not space(), to leave ALU_NAME_W cells for the name.
+	hl = cur.aluS != prev.aluS;
+	if(fieldDue(F_ALUS, fieldKey(cur.aluS, hl))) {
+		formatHex(buf, cur.aluS, 1);
+		lcdDrawText(40, 2 * ROW_H, buf, LCD_GREEN, fieldBg(hl), font);
+	}
+	hl = flagsChanged & SIG_ALUM;
+	if(fieldDue(F_ALUM, fieldKey(flags & SIG_ALUM, hl)))
+		flagDisp(56, 2 * ROW_H, PSTR("M"), flags & SIG_ALUM, fieldBg(hl), font);
+	hl = flagsChanged & SIG_CIN;
+	if(fieldDue(F_CIN, fieldKey(flags & SIG_CIN, hl)))
+		flagDisp(72, 2 * ROW_H, PSTR("C"), flags & SIG_CIN, fieldBg(hl), font);
 
-	//-- The single-bit signals, one column per group: ALU and data path
-	// control, the microprogram branch tests, and the Unibus.
-	const uint16_t col0 = 0;
-	const uint16_t col1 = lineX(5, &font);
-	const uint16_t col2 = lineX(11, &font);
-	const uint16_t rowH = font.height + 1;
-	y = lineY(3, &font) + 6;
+	// The ALU output only reaches the AMUX, and only while EALU selects it:
+	// grey otherwise.
+	uint16_t aluInputs = SIG_ALUM | SIG_CIN | SIG_EALU;
+	hl = cur.aluS != prev.aluS || (flagsChanged & aluInputs);
+	if(fieldDue(F_ALUNAME, fieldKey((uint16_t) (cur.aluS << 12) | (flags & aluInputs), hl))) {
+		aluName(buf, cur.aluS, flags & SIG_ALUM, flags & SIG_CIN);
+		lcdDrawText(88, 2 * ROW_H, buf, flags & SIG_EALU ? LCD_GREEN : LCD_GREY, fieldBg(hl), font);
+	}
 
-	flagDisp(col0, y, PSTR("EALU"), flags & SIG_EALU, &font);
-	flagDisp(col0, y + rowH, PSTR("AUXC"), flags & SIG_AUX_C, &font);
-	flagDisp(col0, y + 2 * rowH, PSTR("CNST"), flags & SIG_CNST, &font);
-
-	flagDisp(col1, y, PSTR("BUTIR"), flags & SIG_BUT_IR, &font);
-	flagDisp(col1, y + rowH, PSTR("BUTJJ"), flags & SIG_BUT_JJ, &font);
-	flagDisp(col1, y + 2 * rowH, PSTR("BUTUN"), flags & SIG_BUT_UN, &font);
-
-	flagDisp(col2, y, PSTR("MSYN"), flags & SIG_MSYN, &font);
-	flagDisp(col2, y + rowH, PSTR("SSYN"), flags & SIG_SSYN, &font);
-	flagDisp(col2, y + 2 * rowH, PSTR("BBSY"), flags & SIG_BBSY, &font);
+	//-- The single-bit signals
+	for(uint8_t i = 0; i < sizeof gridFlags / sizeof gridFlags[0]; i++) {
+		const GridFlag &g = gridFlags[i];
+		hl = flagsChanged & g.mask;
+		if(fieldDue((Field) (F_EALU + i), fieldKey(flags & g.mask, hl)))
+			flagDisp(g.x, GRID_Y + g.row * ROW_H, g.name, flags & g.mask, fieldBg(hl), font);
+	}
 
 	// C1 C0 name the Unibus cycle (KD11-B Table 5-4), shown with its code.
 	// Styled as a flag on MSYN, which is when the code is valid. Padded to
 	// seven cells so a shorter name overwrites a longer one.
 	static const char cycleNames[4][8] PROGMEM = { "DATI=0 ", "DATIP=1", "DATO=2 ", "DATOB=3" };
-	uint8_t cycle = (flags & SIG_C1 ? 2 : 0) | (flags & SIG_C0 ? 1 : 0);
-	strcpy_P(buf, cycleNames[cycle]);
-	flagText(col2, y + 3 * rowH, buf, flags & SIG_MSYN, &font);
+	uint16_t cycleInputs = SIG_C1 | SIG_C0 | SIG_MSYN;
+	hl = flagsChanged & cycleInputs;
+	if(fieldDue(F_CYCLE, fieldKey(flags & cycleInputs, hl))) {
+		uint8_t cycle = (flags & SIG_C1 ? 2 : 0) | (flags & SIG_C0 ? 1 : 0);
+		strcpy_P(buf, cycleNames[cycle]);
+		flagText(GRID_COL2, GRID_Y + 3 * ROW_H, buf, flags & SIG_MSYN, fieldBg(hl), font);
+	}
 
 	//-- Bottom line: DEC's tag for the microstep the MPC points at. That is
-	// the step about to execute, not the one whose effects are on the lamps
-	// (KD11-B manual 5.9 e), hence NXT, the field name for it.
-	y += 4 * rowH;
-	x = lcdDrawText_P(0, y, PSTR("NXT"), LCD_WHITE, currentBg, &font);
-	space(x, &font);
-	strcpy_P(buf, microTags[getMPC()]);
-	if(buf[0] == '\0')						// not in the listing
-		strcpy(buf, "?");
-	padTo(buf, MICROTAG_LEN);
-	x = lcdDrawText(x, y, buf, LCD_CYAN, currentBg, &font);
-	space(x, &font);
+	// the step about to execute, not the one whose effects are on the lamps,
+	// hence NXT, the field name for it.
+	const uint16_t yBottom = GRID_Y + 4 * ROW_H;
+	hl = cur.mpc != prev.mpc;
+	if(fieldDue(F_NXT, fieldKey(cur.mpc, hl))) {
+		strcpy_P(buf, microTags[cur.mpc]);
+		if(buf[0] == '\0')					// not in the listing
+			strcpy(buf, "?");
+		padTo(buf, MICROTAG_LEN);
+		lcdDrawText(33, yBottom, buf, LCD_CYAN, fieldBg(hl), font);
+	}
 
 	// The expanders that did not answer. Their inputs read as all ones, which
 	// decodes to plausible values; this says which part of the screen is not
 	// real. Blank while all six answer.
-	uint8_t n = 0;
-	if(pcfStatus != 0) {
-		buf[n++] = 'I';
-		buf[n++] = '2';
-		buf[n++] = 'C';
-		buf[n++] = ':';
-		if(pcfStatus == (1 << PCF_COUNT) - 1) {
-			strcpy(buf + n, "ALL");
-			n += 3;
-		} else {
-			for(uint8_t i = 0; i < PCF_COUNT; i++)
-				if(pcfStatus & (1 << i))
-					buf[n++] = (char) ('2' + i);		// bit 0 is U2
+	if(fieldDue(F_I2C, status)) {
+		uint8_t n = 0;
+		if(status != 0) {
+			strcpy(buf, "I2C:");
+			n = 4;
+			if(status == (1 << PCF_COUNT) - 1) {
+				strcpy(buf + n, "ALL");
+				n += 3;
+			} else {
+				for(uint8_t i = 0; i < PCF_COUNT; i++)
+					if(status & (1 << i))
+						buf[n++] = (char) ('2' + i);	// bit 0 is U2
+			}
 		}
+		buf[n] = '\0';
+		padTo(buf, 9);
+		lcdDrawText(82, yBottom, buf, LCD_RED, currentBg, font);
 	}
-	buf[n] = '\0';
-	padTo(buf, 9);
-	lcdDrawText(x, y, buf, LCD_RED, currentBg, &font);
+
+	screenDrawn = true;
+}
+
+__attribute__((unused)) static bool sameSignals(const KmSignals &a, const KmSignals &b) {
+	return a.mpc == b.mpc && a.amux == b.amux && a.spad == b.spad
+		&& a.aluS == b.aluS && a.flags == b.flags;
 }
 
 // Reset diagnostics, shown in the bottom-right corner while RESET_DIAG is set
@@ -594,11 +658,22 @@ int main() {
 		// NO_I2C (make EXTRA=-DNO_I2C) leaves the expanders alone entirely, to
 		// separate anything the bus does from anything the drawing does.
 #ifndef NO_I2C
-		pcfStatus = signalsRead(&currentSignals);
-#else
-		(void) pcfStatus;
+		KmSignals sample;
+		pcfStatus = signalsRead(&sample);
+		// Keep the state before the last change, not the last sample: when
+		// single stepping the machine sits still between steps, and the
+		// highlight has to stay until the next one.
+		// The first sample has nothing to compare with and highlights nothing.
+		static bool sampled;
+		if(!sampled) {
+			previousSignals = currentSignals = sample;
+			sampled = true;
+		} else if(!sameSignals(sample, currentSignals)) {
+			previousSignals = currentSignals;
+			currentSignals = sample;
+		}
 #endif
-		example();
+		drawScreen(currentSignals, previousSignals, pcfStatus);
 #if RESET_DIAG
 		showResetDiag();
 #endif
