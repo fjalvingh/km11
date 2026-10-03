@@ -43,7 +43,7 @@ At the time of writing the code takes about 9.3KB of the 16KB Flash available.
 The code is a loop that reads all six extenders about ten times a second and repaints only
 what changed. An earlier version of the screen, before the layout described below:
 
-![earlier screen layout](screen-1.png)
+![The screen, on a non-inserted card](screen-1.png)
 
 ### What the screen shows
 
@@ -63,9 +63,7 @@ NXT H-2  E OK
 * **AMUX** – the 16-bit data path (octal).
 * **SPAD** – the scratchpad register being addressed, numbered as DEC does (R0–R17), with its
   use: SP, PC, SRC (R10), DST (R11), VEC (R12) or LAD (R17). Then SPWR, the scratchpad write.
-* **ALU** – S, the raw S3–S0 function select (hex), then M (mode) and C (carry in), then the
-  74181 function they select (for example `A+B+1`). The function is grey when EALU is off,
-  because then the ALU result does not reach the AMUX.
+* **ALU** – S, the raw S3–S0 function select (hex), then M (mode) and C (carry in), then the 74181 function they select (for example `A+B+1`). The function is grey when EALU is off, because then the ALU result does not reach the AMUX.
 * **Flags**, in three columns: ALU/data path (EALU, AUXC, CNST), the microprogram branch tests
   (BUTIR, BUTJJ, BUTUN), and the Unibus (MSYN, SSYN, BBSY). Below the Unibus column is the bus
   cycle from C1/C0 with its code: DATI=0, DATIP=1, DATO=2, DATOB=3. The cycle name is lit while
@@ -113,9 +111,16 @@ reason; on the 11/05 throwing it asserts BUS AC LO and starts the power-fail seq
 `review.md` records the September 2026 check of the design and firmware against DEC's own
 documentation, with the sources.
 
+## Help with microcode debugging
+
+The PDP 11/05 microcode for Rev.E and Rev.F can be browsed easily using [the microcode browser for the PDP 11/05](https://tools.etc.to/).
+
 ## Programming
 
-To program the ATTINY1616 please follow the setup and instructions from [my 8bit bus display tool](https://github.com/fjalvingh/8bit-busdisplay). The source code is under src/, and to compile and upload use `make upload` there with the programmer connected.
+To program the ATTINY1616 please follow the setup and instructions from [my 8bit bus display tool](https://github.com/fjalvingh/8bit-busdisplay). The source code is under src/. Two steps to do for a build:
+
+* Use `make` to build the code, then
+* Use `make upload` to upload the code to the board (with the programmer connected, obviously).
 
 ## The prototype
 
@@ -132,6 +137,6 @@ of testing and messing around with the code I gave up, I assume the display I go
 
 More closeup:
 
-![The display. On the side you can see the M7261 board on an extender](v1-in-11-2.png)
-The microcode PC is at 302~oct~, which is H-2, part of the HALT instruction, as can be seen from [the microcode browser for the PDP 11/05 rev E](https://tools.etc.to/)
+![The old style display. On the side you can see the M7261 board on an extender](v1-in-11-2.png)
+The microcode PC is at 302~oct~, which is H-2, part of the HALT instruction.
 
