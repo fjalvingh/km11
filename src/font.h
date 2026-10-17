@@ -28,6 +28,7 @@ struct Font {
 #define FONT_MAX_CELL_W 8
 
 extern const Font FontSmall;	// 5x7 in a 6x8 cell, see font5x7.h
+extern const Font FontMedium;	// 8x14, see font8x14.h
 extern const Font FontLarge;	// 8x16, see font8x16.h
 
 #endif // FONT_H

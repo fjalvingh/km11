@@ -17,7 +17,8 @@ static bool haveSample;
 static uint8_t moving;					// samples in a row that differed from the one before
 static bool haveSettled;
 static uint8_t settledMpc;				// the MPC of the last settled sample
-static int16_t word = -1;				// address of the word on the lamps, -1 if unknown
+static int16_t current = -1;			// address of the word on the lamps, -1 if unknown
+static int16_t word = -1;				// the same, but only when it can be checked
 static uint8_t state = CHK_NONE;
 static CheckResult result;				// what the last settled sample showed
 
@@ -51,9 +52,12 @@ static bool canFollow(const MicroWord &w, uint8_t next) {
 // A new settled state: decide which word is on the lamps now.
 static void settled(const KmSignals &s, bool ran) {
 	if(!haveSettled || ran) {
+		current = -1;
 		word = -1;
 		state = CHK_NONE;
 	} else if(s.mpc != settledMpc) {
+		// Whatever the listing says about it, the step came from here
+		current = settledMpc;
 		const MicroWord &w = microcode[settledMpc];
 		if(!(w.ctl & MW_LISTED)) {
 			word = -1;
@@ -143,6 +147,7 @@ void checkLost() {
 	haveSample = false;
 	haveSettled = false;
 	moving = 0;
+	current = -1;
 	word = -1;
 	state = CHK_NONE;
 }
@@ -159,6 +164,7 @@ void checkSample(const KmSignals &s, CheckResult *r) {
 		if(moving < 255)
 			moving++;
 		if(moving > 2) {
+			current = -1;
 			word = -1;
 			state = CHK_NONE;
 		}
@@ -175,5 +181,6 @@ void checkSample(const KmSignals &s, CheckResult *r) {
 	}
 	result.state = state;
 	result.rev = rev;
+	result.current = current;
 	*r = result;
 }

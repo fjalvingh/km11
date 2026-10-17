@@ -5,6 +5,7 @@
 
 #include "lcd.h"
 #include "font5x7.h"
+#include "font8x14.h"
 #include "pcf8574.h"
 #include "signals.h"
 #include "microtags.h"
@@ -410,9 +411,9 @@ static void aluName(char *buf, uint8_t s, bool logic, bool carry) {
 // one only repaints what moved. Each field remembers the key it was last drawn
 // with: its value plus whether it is highlighted.
 enum Field : uint8_t {
-	F_MPC, F_AMUX, F_SPAD, F_SPWR, F_ALUS, F_ALUM, F_CIN, F_ALUNAME,
+	F_CUR, F_AMUX, F_SPAD, F_SPWR, F_ALUS, F_ALUM, F_CIN, F_ALUNAME,
 	F_EALU, F_AUXC, F_CNST, F_BUTIR, F_BUTJJ, F_BUTUN,
-	F_MSYN, F_SSYN, F_BBSY, F_CYCLE, F_NXT, F_STATUS,
+	F_MSYN, F_SSYN, F_BBSY, F_CYCLE, F_STATUS, F_MPC,
 	F_COUNT
 };
 
@@ -430,12 +431,20 @@ static uint32_t fieldKey(uint16_t value, uint8_t style) {
 	return (uint32_t) value | ((uint32_t) style << 16);
 }
 
-// Pixel layout: eight lines of the large font fill the 128 pixel height
-// exactly, so lines are 16 apart with no extra gap. The font never uses the
-// bottom row of its cell, which keeps the lines apart.
-static const uint8_t ROW_H = 16;		// FontLarge.height
-static const uint8_t GRID_Y = 3 * ROW_H;
-static_assert(GRID_Y + 5 * ROW_H <= LCD_H, "the NXT line must be on the screen");
+// Pixel layout: nine lines of the 8x14 font, 14 apart with no extra gap, fill
+// 126 of the 128 pixels. Capitals use the middle ten rows of the cell, which
+// keeps the lines apart.
+//
+//   0  CUR  the word whose fields are on the lamps, and its tag
+//   1  AMUX
+//   2  SPAD
+//   3  ALU
+//   4..7  the grid of single-bit signals; status bottom left, bus cycle right
+//   8  MPC  the word that executes next, and its tag
+static const uint8_t ROW_H = 14;		// FontMedium.height
+static const uint8_t GRID_Y = 4 * ROW_H;
+static const uint8_t MPC_Y = GRID_Y + 4 * ROW_H;
+static_assert(MPC_Y + ROW_H <= LCD_H, "the MPC line must be on the screen");
 static const uint8_t GRID_COL1 = 45;
 static const uint8_t GRID_COL2 = 99;
 
@@ -472,19 +481,43 @@ static const GridFlag gridFlags[] = {
 };
 
 static void drawLabels(const Font *font) {
-	lcdDrawText_P(0,  0,         PSTR("MPC"),  LCD_WHITE, currentBg, font);
-	lcdDrawText_P(66, 0,         PSTR("AMUX"), LCD_WHITE, currentBg, font);
-	lcdDrawText_P(0,  ROW_H,     PSTR("SPAD"), LCD_WHITE, currentBg, font);
-	lcdDrawText_P(0,  2 * ROW_H, PSTR("ALU"),  LCD_WHITE, currentBg, font);
-	lcdDrawText_P(32, 2 * ROW_H, PSTR("S"),    LCD_WHITE, currentBg, font);
-	lcdDrawText_P(0,  GRID_Y + 4 * ROW_H, PSTR("NXT"), LCD_WHITE, currentBg, font);
+	lcdDrawText_P(0,  0,         PSTR("CUR"),  LCD_WHITE, currentBg, font);
+	lcdDrawText_P(0,  ROW_H,     PSTR("AMUX"), LCD_WHITE, currentBg, font);
+	lcdDrawText_P(0,  2 * ROW_H, PSTR("SPAD"), LCD_WHITE, currentBg, font);
+	lcdDrawText_P(0,  3 * ROW_H, PSTR("ALU"),  LCD_WHITE, currentBg, font);
+	lcdDrawText_P(32, 3 * ROW_H, PSTR("S"),    LCD_WHITE, currentBg, font);
+	lcdDrawText_P(0,  MPC_Y,     PSTR("MPC"),  LCD_WHITE, currentBg, font);
+}
+
+// A control store address in octal and DEC's tag for it, or "--" for an
+// address not known. The tag is highlighted when the address changed but
+// never marked bad: it is only a name.
+static void drawAddress(Field f, uint16_t y, int16_t addr, uint8_t st, const Font *font) {
+	if(!fieldDue(f, fieldKey((uint16_t) addr, st)))
+		return;
+	char buf[MICROTAG_LEN + 1];
+	if(addr < 0)
+		strcpy(buf, "-- ");
+	else
+		formatOctal(buf, (uint16_t) addr, 3);
+	lcdDrawText(32, y, buf, styleFg(st, LCD_GREEN), styleBg(st), font);
+
+	if(addr < 0)
+		buf[0] = '\0';
+	else {
+		strcpy_P(buf, microTags[addr]);
+		if(buf[0] == '\0')					// not in the listing
+			strcpy(buf, "?");
+	}
+	padTo(buf, MICROTAG_LEN);
+	lcdDrawText(64, y, buf, LCD_CYAN, styleBg(st == ST_BAD ? ST_CHANGED : st), font);
 }
 
 // Draws `cur`, highlighting every value that differs from `prev`, the state
 // before the last change. The highlight therefore stays until the machine
 // moves again, which is what single stepping needs.
 __attribute__((unused)) static void drawScreen(const KmSignals &cur, const KmSignals &prev, uint8_t status, const CheckResult &chk) {
-	const Font *font = &FontLarge;
+	const Font *font = &FontMedium;
 	char buf[20];
 	uint16_t flags = cur.flags;
 	uint16_t flagsChanged = cur.flags ^ prev.flags;
@@ -493,18 +526,16 @@ __attribute__((unused)) static void drawScreen(const KmSignals &cur, const KmSig
 	if(!screenDrawn)
 		drawLabels(font);
 
-	// The MPC is 8 bits, three octal digits: 000..377. It is the address of
-	// the NEXT microstep, not the current one (KD11-B manual, 5.9 e). Marked
-	// bad when the last step went somewhere the listing cannot go.
-	st = styleOf(cur.mpc != prev.mpc, chk.state == CHK_SEQ);
-	if(fieldDue(F_MPC, fieldKey(cur.mpc, st))) {
-		formatOctal(buf, cur.mpc, 3);
-		lcdDrawText(33, 0, buf, styleFg(st, LCD_GREEN), styleBg(st), font);
-	}
+	// The microword whose fields the rest of the screen shows. The MPC lamps
+	// cannot say which that is, since they already point at the next one;
+	// the check works it out from the MPC before the last single step, and
+	// knows nothing until it has seen one (or while the clock runs).
+	drawAddress(F_CUR, 0, chk.current, styleOf(chk.current >= 0 && cur.mpc != prev.mpc, false), font);
+
 	st = styleOf(cur.amux != prev.amux, false);
 	if(fieldDue(F_AMUX, fieldKey(cur.amux, st))) {
 		formatOctal(buf, cur.amux, 6);
-		lcdDrawText(107, 0, buf, styleFg(st, LCD_GREEN), styleBg(st), font);
+		lcdDrawText(40, ROW_H, buf, styleFg(st, LCD_GREEN), styleBg(st), font);
 	}
 
 	//-- SPAD: the register as DEC numbers it (R0..R17, octal), what the
@@ -514,26 +545,26 @@ __attribute__((unused)) static void drawScreen(const KmSignals &cur, const KmSig
 		buf[0] = 'R';
 		formatOctal(buf + 1, cur.spad, cur.spad > 7 ? 2 : 1);
 		padTo(buf, 3);						// "R7 " overwrites a previous "R17"
-		lcdDrawText(41, ROW_H, buf, styleFg(st, LCD_GREEN), styleBg(st), font);
-		lcdDrawText_P(74, ROW_H, spadNames[cur.spad], styleFg(st, LCD_CYAN), styleBg(st), font);
+		lcdDrawText(41, 2 * ROW_H, buf, styleFg(st, LCD_GREEN), styleBg(st), font);
+		lcdDrawText_P(74, 2 * ROW_H, spadNames[cur.spad], styleFg(st, LCD_CYAN), styleBg(st), font);
 	}
 	st = styleOf(flagsChanged & SIG_SPWR, false);
 	if(fieldDue(F_SPWR, fieldKey(flags & SIG_SPWR, st)))
-		flagDisp(107, ROW_H, PSTR("SPWR"), flags & SIG_SPWR, st, font);
+		flagDisp(107, 2 * ROW_H, PSTR("SPWR"), flags & SIG_SPWR, st, font);
 
 	//-- ALU: the raw select code, mode and carry in, then what they compute.
 	// Glyph-wide gaps here, not space(), to leave ALU_NAME_W cells for the name.
 	st = styleOf(cur.aluS != prev.aluS, chk.badAluS);
 	if(fieldDue(F_ALUS, fieldKey(cur.aluS, st))) {
 		formatHex(buf, cur.aluS, 1);
-		lcdDrawText(40, 2 * ROW_H, buf, styleFg(st, LCD_GREEN), styleBg(st), font);
+		lcdDrawText(40, 3 * ROW_H, buf, styleFg(st, LCD_GREEN), styleBg(st), font);
 	}
 	st = styleOf(flagsChanged & SIG_ALUM, chk.badFlags & SIG_ALUM);
 	if(fieldDue(F_ALUM, fieldKey(flags & SIG_ALUM, st)))
-		flagDisp(56, 2 * ROW_H, PSTR("M"), flags & SIG_ALUM, st, font);
+		flagDisp(56, 3 * ROW_H, PSTR("M"), flags & SIG_ALUM, st, font);
 	st = styleOf(flagsChanged & SIG_CIN, chk.badFlags & SIG_CIN);
 	if(fieldDue(F_CIN, fieldKey(flags & SIG_CIN, st)))
-		flagDisp(72, 2 * ROW_H, PSTR("C"), flags & SIG_CIN, st, font);
+		flagDisp(72, 3 * ROW_H, PSTR("C"), flags & SIG_CIN, st, font);
 
 	// The ALU output only reaches the AMUX, and only while EALU selects it:
 	// grey otherwise.
@@ -541,7 +572,7 @@ __attribute__((unused)) static void drawScreen(const KmSignals &cur, const KmSig
 	st = styleOf(cur.aluS != prev.aluS || (flagsChanged & aluInputs), false);
 	if(fieldDue(F_ALUNAME, fieldKey((uint16_t) (cur.aluS << 12) | (flags & aluInputs), st))) {
 		aluName(buf, cur.aluS, flags & SIG_ALUM, flags & SIG_CIN);
-		lcdDrawText(88, 2 * ROW_H, buf, flags & SIG_EALU ? LCD_GREEN : LCD_GREY, styleBg(st), font);
+		lcdDrawText(88, 3 * ROW_H, buf, flags & SIG_EALU ? LCD_GREEN : LCD_GREY, styleBg(st), font);
 	}
 
 	//-- The single-bit signals
@@ -564,22 +595,15 @@ __attribute__((unused)) static void drawScreen(const KmSignals &cur, const KmSig
 		flagText(GRID_COL2, GRID_Y + 3 * ROW_H, buf, flags & SIG_MSYN, st, font);
 	}
 
-	//-- Bottom line: DEC's tag for the microstep the MPC points at. That is
-	// the step about to execute, not the one whose effects are on the lamps,
-	// hence NXT, the field name for it.
-	const uint16_t yBottom = GRID_Y + 4 * ROW_H;
-	st = styleOf(cur.mpc != prev.mpc, false);
-	if(fieldDue(F_NXT, fieldKey(cur.mpc, st))) {
-		strcpy_P(buf, microTags[cur.mpc]);
-		if(buf[0] == '\0')					// not in the listing
-			strcpy(buf, "?");
-		padTo(buf, MICROTAG_LEN);
-		lcdDrawText(33, yBottom, buf, LCD_CYAN, styleBg(st), font);
-	}
+	//-- Bottom line: the MPC, 8 bits, three octal digits: 000..377. It is the
+	// address of the NEXT microstep, not the one on the lamps (KD11-B manual,
+	// 5.9 e). Marked bad when the last step went somewhere the listing cannot
+	// go.
+	drawAddress(F_MPC, MPC_Y, cur.mpc, styleOf(cur.mpc != prev.mpc, chk.state == CHK_SEQ), font);
 
-	// Status, bottom right. Expanders that did not answer come first: their
-	// inputs read as all ones, which decodes to plausible values, so this
-	// says which part of the screen is not real. Otherwise the microcode
+	// Status, bottom left of the grid. Expanders that did not answer come
+	// first: their inputs read as all ones, which decodes to plausible
+	// values, so this says which part of the screen is not real. Otherwise the microcode
 	// check: the revision (E, F, ? until a step has shown it) and whether the
 	// lamps match the listing for the word on them.
 	uint16_t key = status ? status : 0x100 | (uint16_t) (chk.state << 8) | (uint8_t) chk.rev;
@@ -607,7 +631,7 @@ __attribute__((unused)) static void drawScreen(const KmSignals &cur, const KmSig
 			color = checkColors[chk.state];
 		}
 		padTo(buf, 9);
-		lcdDrawText(82, yBottom, buf, color, currentBg, font);
+		lcdDrawText(0, GRID_Y + 3 * ROW_H, buf, color, currentBg, font);
 	}
 
 	screenDrawn = true;
@@ -697,13 +721,13 @@ int main() {
 		}
 		// A sample with an expander missing is not the machine: drop what the
 		// check knows rather than learn from it.
-		CheckResult check = { CHK_NONE, '?', 0, false, false };
+		CheckResult check = { CHK_NONE, '?', 0, false, false, -1 };
 		if(pcfStatus == 0)
 			checkSample(sample, &check);
 		else
 			checkLost();
 #else
-		CheckResult check = { CHK_NONE, '?', 0, false, false };
+		CheckResult check = { CHK_NONE, '?', 0, false, false, -1 };
 #endif
 		drawScreen(currentSignals, previousSignals, pcfStatus, check);
 #if RESET_DIAG

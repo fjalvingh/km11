@@ -69,9 +69,9 @@ void lcdReadRegister(uint8_t cmd, uint8_t *out, uint8_t count);
 // background painted in the same pass, and returns the x of the next cell.
 // Characters outside the font's range are drawn as a blank cell.
 //
-// `font` is FontSmall (5x7 in a 6x8 cell) or FontLarge (8x16); scale is on top
-// of that, so FontSmall at scale 2 and FontLarge are the same height but the
-// latter is a real font rather than doubled pixels.
+// `font` is FontSmall (5x7 in a 6x8 cell), FontMedium (8x14) or FontLarge
+// (8x16); scale is on top of that, so FontSmall at scale 2 and FontLarge are
+// the same height but the latter is a real font rather than doubled pixels.
 uint16_t lcdDrawChar(uint16_t x, uint16_t y, char c, uint16_t fg, uint16_t bg, const Font *font = &FontSmall, uint8_t scale = 1);
 
 // Draws a NUL terminated string, returning the x just past the last cell.

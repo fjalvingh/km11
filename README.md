@@ -35,31 +35,34 @@ The first version had some small issues which were repaired in this version.
 
 The code was partially created by Claude, and does not use the usual libraries to save space 
 in the Flash memory of the ATTINY1616 as it only has 16K. The code directly accesses registers
-to control both the ST7735 LCD controller and the I2C extenders, and contains two fonts (5x7 
-and 8x16).
+to control both the ST7735 LCD controller and the I2C extenders, and contains three fonts (5x7,
+8x14 and 8x16).
 
 At the time of writing the code takes about 9.3KB of the 16KB Flash available.
 
 The code is a loop that reads all six extenders about ten times a second and repaints only
-what changed. An earlier version of the screen, before the layout described below:
+what changed. The screen looks as follows:
 
-![The screen, on a non-inserted card](screen-1.png)
+![The screen, on a PDP 11/05 halting on the console](screen-1.png)
 
 ### What the screen shows
 
 ```
-MPC 302  AMUX 000000
+CUR 301 H-1
+AMUX 000000
 SPAD R7  PC  spwr
 ALU SF M c A
-EALU BUTIR msyn
+EALU butir msyn
 auxc butjj ssyn
 cnst butun bbsy
-          dati=0
-NXT H-2  E OK
+E OK        dati=0
+MPC 302 H-2
 ```
 
-* **MPC** – the microprogram counter (octal). This is the *next* microstep, not the one whose
-  signals are on the rest of the screen (KD11-B manual EK-KD11B-MM-001, 5.9).
+* **CUR** – the microstep whose signals are on the rest of the screen (octal), with DEC's name
+  for it as used in the microprogram flow charts. No lamp shows this: the firmware learns it
+  from the MPC before a single step, so it reads `--` until it has seen one, and again while
+  the clock runs.
 * **AMUX** – the 16-bit data path (octal).
 * **SPAD** – the scratchpad register being addressed, numbered as DEC does (R0–R17), with its
   use: SP, PC, SRC (R10), DST (R11), VEC (R12) or LAD (R17). Then SPWR, the scratchpad write.
@@ -68,9 +71,9 @@ NXT H-2  E OK
   (BUTIR, BUTJJ, BUTUN), and the Unibus (MSYN, SSYN, BBSY). Below the Unibus column is the bus
   cycle from C1/C0 with its code: DATI=0, DATIP=1, DATO=2, DATOB=3. The cycle name is lit while
   MSYN is asserted.
-* **NXT** – DEC's name for the microstep the MPC points at, as used in the microprogram flow
-  charts.
-* **Status** (bottom right) – the microcode revision and the result of the microcode check (see
+* **MPC** – the microprogram counter (octal), with its name. This is the *next* microstep, not
+  the one whose signals are on the rest of the screen (KD11-B manual EK-KD11B-MM-001, 5.9).
+* **Status** (below the first flag column) – the microcode revision and the result of the microcode check (see
   below). A red `I2C:` followed by U numbers replaces it when an extender does not answer; the
   values that extender supplies are then not real.
 

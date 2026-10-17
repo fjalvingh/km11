@@ -1,6 +1,6 @@
 # Define variables that may change between projects
 FILENAME = kmmain
-PORT = /dev/ttyUSB2
+PORT = /dev/ttyUSB1
 DEVICE = attiny1616
 PROGRAMMER = serialupdi
 
@@ -82,9 +82,10 @@ $(OBJECTS): Makefile diagmode.stamp
 .PHONY: force
 diagmode.stamp: force
 	@echo "$(DIAG_MODE) $(LCD_SPI_DIV) $(EXTRA)" | cmp -s - $@ || echo "$(DIAG_MODE) $(LCD_SPI_DIV) $(EXTRA)" > $@
-kmmain.o: lcd.h font.h font5x7.h font8x16.h lcd_config.h pcf8574.h signals.h microtags.h mcheck.h
+kmmain.o: lcd.h font.h font5x7.h font8x14.h font8x16.h lcd_config.h pcf8574.h signals.h microtags.h mcheck.h
 lcd.o: lcd.h font.h font5x7.h font8x16.h lcd_config.h
 font5x7.o: font.h font5x7.h
+font8x14.o: font.h font8x14.h
 font8x16.o: font.h font8x16.h
 pcf8574.o: pcf8574.h
 signals.o: signals.h pcf8574.h

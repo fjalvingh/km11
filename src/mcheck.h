@@ -20,6 +20,7 @@ struct CheckResult {
 	uint16_t badFlags;		// SIG_* lamps that disagree with the listing
 	bool badSpad;
 	bool badAluS;
+	int16_t current;		// address of the word on the lamps, -1 until a step shows it
 };
 
 // Loads the remembered revision from EEPROM.
