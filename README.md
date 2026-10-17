@@ -140,3 +140,9 @@ More closeup:
 ![The old style display. On the side you can see the M7261 board on an extender](v1-in-11-2.png)
 The microcode PC is at 302~oct~, which is H-2, part of the HALT instruction.
 
+## Errata
+
+The KM11 schematic in the 1973 manual shows V1 for M CLK L, the single step clock pulse. But this should be U1. The reproduction by [Tony Duell](http://www.ubanproductions.com/km11x.html) properly names U1 in the ascii art schematic for S4, but misnames it as J1 in the text.
+
+In addition the S4 remark in the same thing seems to be wrong: the clock switch should be connected the other way around (i.e. latched upward in that schematic).
+
